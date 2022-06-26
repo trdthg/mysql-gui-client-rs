@@ -1,6 +1,9 @@
-use eframe::egui::{self, ScrollArea};
+use eframe::egui;
 
-use crate::pages::{headline::HeadLine, list::List, talk::Talk};
+use crate::{
+    config::Config,
+    pages::{headline::HeadLine, list::List, setting::Setting, talk::Talk, test::Test},
+};
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -9,6 +12,7 @@ pub enum Page {
     Article,
     List,
     Other,
+    Setting,
 }
 
 impl Default for Page {
@@ -16,12 +20,15 @@ impl Default for Page {
         Self::Article
     }
 }
-pub(crate) struct Router {
+pub struct Router {
     page: Page,
     list: List,
     article: HeadLine,
     talk: Talk,
+    test: Test,
+    setting: Setting,
 }
+
 impl Default for Router {
     fn default() -> Self {
         Self {
@@ -29,21 +36,24 @@ impl Default for Router {
             article: HeadLine::default(),
             list: Default::default(),
             talk: Default::default(),
+            test: Default::default(),
+            setting: Default::default(),
         }
     }
 }
 impl Router {
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &mut Config) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.page, Page::Article, "文章");
             ui.selectable_value(&mut self.page, Page::List, "列表");
             ui.selectable_value(&mut self.page, Page::Talk, "聊天");
             ui.selectable_value(&mut self.page, Page::Other, "待续");
+            ui.selectable_value(&mut self.page, Page::Setting, "设置");
         });
         ui.separator();
         match self.page {
             Page::Article => {
-                self.article.ui(ui);
+                self.article.ui(ui, cfg);
             }
             Page::Talk => {
                 self.talk.ui(ui);
@@ -52,7 +62,10 @@ impl Router {
                 self.list.ui(ui);
             }
             Page::Other => {
-                ui.label("没有写呢！".to_owned());
+                self.test.ui(ui);
+            }
+            Page::Setting => {
+                self.setting.ui(ui, cfg);
             }
         }
     }

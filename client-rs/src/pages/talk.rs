@@ -1,5 +1,6 @@
 use eframe::{
-    egui::{self, RichText, ScrollArea},
+    egui::{self, Layout, RichText, ScrollArea},
+    emath::{Rect, Vec2},
     epaint::Color32,
 };
 
@@ -61,31 +62,45 @@ impl Talk {
         ui.separator();
         ui.label(format!("聊天展示区"));
 
-        ui.vertical(|ui| {
-            let scroll_area = ScrollArea::vertical()
-                .max_height(300.0)
-                .auto_shrink([false; 2]);
-            scroll_area.show(ui, |ui| {
-                for msg in self.msg_buf.iter() {
-                    if let Message::Normal { msg, user } = msg {
-                        let user = {
-                            if user.is_empty() {
-                                "default"
-                            } else {
-                                &user
-                            }
-                        };
-                        ui.label(RichText::new(user));
+        // ui.vertical(|ui| {
+        let scroll_area = ScrollArea::vertical()
+            .max_height(300.0)
+            .auto_shrink([false; 2]);
+        scroll_area.show(ui, |ui| {
+            for msg in self.msg_buf.iter() {
+                if let Message::Normal { msg, user } = msg {
+                    let user = {
+                        if user.is_empty() {
+                            "default"
+                        } else {
+                            &user
+                        }
+                    };
+                    ui.vertical(|ui| {
                         let text = format!("[{}] {}", user.clone(), msg.clone());
-                        ui.label(
-                            RichText::new(text)
-                                .background_color(Color32::LIGHT_YELLOW)
-                                .monospace(),
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(ui.available_width(), 1.),
+                            Layout::right_to_left(),
+                            |ui| {
+                                ui.label(RichText::new(user));
+                            },
                         );
-                    }
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(ui.available_width(), 1.),
+                            Layout::right_to_left(),
+                            |ui| {
+                                ui.label(
+                                    RichText::new(text)
+                                        .background_color(Color32::LIGHT_YELLOW)
+                                        .monospace(),
+                                );
+                            },
+                        );
+                    });
                 }
-            });
+            }
         });
+        // });
 
         // ui.image(, [640.0, 480.0]);
         ui.separator();

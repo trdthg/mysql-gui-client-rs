@@ -1,36 +1,44 @@
-use eframe::{
-    egui::{self, Button, Context, Hyperlink, Layout, RichText, Style, TextStyle, TopBottomPanel},
-    epaint::FontFamily::Proportional,
-    epaint::FontId,
-};
+use eframe::egui::{self, Button, Context, Hyperlink, Layout, RichText, TopBottomPanel};
 
-use crate::router::Router;
+use crate::{config::Config, router::Router};
 
 pub struct App {
-    router: Router,
+    pub router: Router,
+    pub config: Config,
+    pub api_key: String,
 }
+
 impl App {
-    fn render_top_panel(&mut self, ctx: &Context) {
+    fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(), |ui| {
                     ui.label(RichText::new("Bok").heading());
                 });
                 ui.with_layout(Layout::right_to_left(), |ui| {
-                    let close_btn = ui.add(Button::new("Close"));
-                    let refresh_btn = ui.add(Button::new("Refresh"));
-                    let theme_btn = ui.add(Button::new("Theme"));
-                    if close_btn.clicked() {}
-                    if refresh_btn.clicked() {}
+                    let close_btn = ui.add(Button::new("关闭"));
+                    if close_btn.clicked() {
+                        frame.quit();
+                    }
+                    let refresh_btn = ui.add(Button::new("刷新"));
+                    if refresh_btn.clicked() {
+                        // frame.ref
+                    }
+                    let theme_btn = ui.add(Button::new("主题"));
+                    if theme_btn.clicked() {
+                        self.config.theme.toogle_dark_mode();
+                    }
+                    // time
+                    let time = chrono::Local::now();
+
+                    ui.label(RichText::new(time.timestamp_millis().to_string()));
                 });
             });
         });
     }
     fn render_footer(&mut self, ctx: &Context) {
         TopBottomPanel::bottom("footer").show(ctx, |ui| {
-            // ui.vertical_centered_justified(|ui| {
             ui.horizontal_centered(|ui| {
-                ui.add_space(10.);
                 ui.label(RichText::new("Api Source: xxx.com").monospace());
                 ui.add(Hyperlink::from_label_and_url(
                     RichText::new("Made with egui").monospace(),
@@ -40,52 +48,40 @@ impl App {
                     RichText::new("Github").monospace(),
                     "https://github.com/creativcoder/headlines",
                 ));
-                ui.add_space(10.);
             });
-            // });
         });
     }
-}
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            router: Router::default(),
-        }
-    }
-}
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let font = crate::font::init_font();
-        ctx.set_fonts(font);
-        let style = init_style();
-        ctx.set_style(style);
+
+    fn render_content(&mut self, ctx: &Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            // self.render_top_panel(ctx);
-            self.router.ui(ui);
-            self.render_footer(ctx);
+            self.router.ui(ui, &mut self.config);
+        });
+    }
+
+    fn render_config(&mut self, ctx: &Context) {
+        eframe::egui::Window::new("配置").show(ctx, |ui| {
+            ui.label(RichText::new("请输入 API_KEY"));
+            ui.text_edit_singleline(&mut self.api_key);
         });
     }
 }
 
-fn init_style() -> Style {
-    let mut style: Style = Style::default();
-    // style.visuals.dark_mode = false;
-    style.text_styles = [
-        (TextStyle::Heading, FontId::new(30.0, Proportional)),
-        (
-            TextStyle::Name("Heading2".into()),
-            FontId::new(25.0, Proportional),
-        ),
-        (
-            TextStyle::Name("Context".into()),
-            FontId::new(23.0, Proportional),
-        ),
-        (TextStyle::Body, FontId::new(18.0, Proportional)),
-        (TextStyle::Monospace, FontId::new(14.0, Proportional)),
-        (TextStyle::Button, FontId::new(14.0, Proportional)),
-        (TextStyle::Small, FontId::new(10.0, Proportional)),
-    ]
-    .into();
-    // style.spacing.item_spacing = egui::vec2(10.0, 20.0);
-    style
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            router: Router::default(),
+            config: Config::default(),
+            api_key: String::new(),
+        }
+    }
+}
+
+impl eframe::App for App {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.config.update(ctx);
+        self.render_config(ctx);
+        self.render_top_panel(ctx, frame);
+        self.render_content(ctx);
+        self.render_footer(ctx);
+    }
 }

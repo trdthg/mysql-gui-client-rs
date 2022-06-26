@@ -9,7 +9,9 @@ use eframe::egui;
 pub mod headline;
 pub mod list;
 pub mod scroll;
+pub mod setting;
 pub mod talk;
+pub mod test;
 
 // ----------------------------------------------------------------------------
 
