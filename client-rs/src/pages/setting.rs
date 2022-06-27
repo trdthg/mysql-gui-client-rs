@@ -1,4 +1,4 @@
-use egui::Button;
+use eframe::egui::Button;
 
 use crate::config::Config;
 
@@ -6,7 +6,7 @@ use crate::config::Config;
 pub struct Setting {}
 
 impl Setting {
-    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &mut Config) {
+    pub fn ui(&mut self, ui: &mut eframe::egui::Ui, cfg: &mut Config) {
         ui.collapsing("Theme", |ui| {
             let dark = ui.add(Button::new("黑暗"));
             let light = ui.add(Button::new("明亮"));
@@ -21,7 +21,5 @@ impl Setting {
         for (i, font) in cfg.theme.font.lists.iter().enumerate() {
             ui.radio_value(&mut cfg.theme.font.selected, i as i8, font);
         }
-
-        // cfg.theme.font.update(1);
     }
 }

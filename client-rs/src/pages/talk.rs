@@ -1,6 +1,6 @@
 use eframe::{
     egui::{self, Layout, RichText, ScrollArea},
-    emath::{Rect, Vec2},
+    emath::Vec2,
     epaint::Color32,
 };
 
@@ -79,14 +79,14 @@ impl Talk {
                     ui.vertical(|ui| {
                         let text = format!("[{}] {}", user.clone(), msg.clone());
                         ui.allocate_ui_with_layout(
-                            Vec2::new(ui.available_width(), 1.),
+                            Vec2::new(ui.available_width(), 0.),
                             Layout::right_to_left(),
                             |ui| {
                                 ui.label(RichText::new(user));
                             },
                         );
                         ui.allocate_ui_with_layout(
-                            Vec2::new(ui.available_width(), 1.),
+                            Vec2::new(ui.available_width(), 0.),
                             Layout::right_to_left(),
                             |ui| {
                                 ui.label(
@@ -136,22 +136,27 @@ impl Talk {
 
         if ui
             .input_mut()
-            .consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+            .consume_key(egui::Modifiers::CTRL, egui::Key::Enter)
         {
-            loop {
+            if !check_msg(&self.text) {
                 let msg = Message::Normal {
                     user: "".to_string(),
                     msg: self.text.clone(),
                 };
-                match self.client.send_msg(msg.clone()) {
-                    Ok(_) => {
-                        self.msg_buf.push(msg);
-                        self.text.clear();
-                        self.count += 1;
-                        ui.ctx().memory().request_focus(output.response.id);
-                        break;
+                loop {
+                    match self.client.send_msg(msg.clone()) {
+                        Ok(_) => {
+                            self.msg_buf.push(msg);
+                            self.text.clear();
+                            self.count += 1;
+                            ui.ctx().memory().request_focus(output.response.id);
+                            break;
+                        }
+                        Err(_) => {
+                            self.client.connect().expect("重连失败");
+                            tracing::debug!("重连失败");
+                        }
                     }
-                    Err(_) => self.client.connect().expect("重连失败"),
                 }
             }
         }
@@ -169,4 +174,8 @@ impl Talk {
             });
         });
     }
+}
+
+fn check_msg(msg: &str) -> bool {
+    return msg.len() == 0 || msg == "\n";
 }

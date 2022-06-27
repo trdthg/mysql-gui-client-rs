@@ -5,14 +5,33 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# [lib]
+# crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-egui = { version = "0.18", features = ["serde"] }
-eframe = { version = "0.18", features = ["serde"] }
+# egui = { version = "0.18", features = ["serde"] }
+eframe = { version = "0.18", features = ["persistence"] }
 egui_extras = { version = "0.18", features = ["serde"] }
 anyhow = "1.0"
 tracing = "0.1"
-tracing-subscriber = "0.3"
 log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
 chrono = "0.4"
 confy = "0.4"
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tracing-subscriber = "0.3"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+tracing-wasm = "0.2"
+
+[profile.release]
+strip = true
+lto = true
+opt-level = 2

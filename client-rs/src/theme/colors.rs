@@ -1,6 +1,6 @@
 use eframe::epaint::Color32;
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Colors {
     pub h1: Color32,
     pub h2: Color32,
@@ -11,6 +11,7 @@ pub struct Colors {
     pub body: Color32,
     pub small: Color32,
     pub link: Color32,
+    pub error: Color32,
 }
 
 impl Colors {
@@ -25,6 +26,7 @@ impl Colors {
             body: Color32::BLACK,
             small: Color32::GREEN,
             link: Color32::BLUE,
+            error: Color32::RED,
         }
     }
     pub fn dark() -> Self {
@@ -38,6 +40,7 @@ impl Colors {
             body: Color32::WHITE,
             small: Color32::WHITE,
             link: Color32::RED,
+            error: Color32::RED,
         }
     }
 }

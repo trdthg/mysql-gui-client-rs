@@ -4,11 +4,23 @@ pub mod colors;
 pub mod font;
 pub mod style;
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Theme {
     pub dark_mode: bool,
+    #[serde(skip)]
     pub colors: Colors,
+    #[serde(skip)]
     pub font: Font,
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Self {
+            dark_mode: false,
+            colors: Default::default(),
+            font: Default::default(),
+        }
+    }
 }
 
 impl Theme {

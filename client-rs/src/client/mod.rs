@@ -3,6 +3,7 @@ use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 
 use self::message::Message;
+pub mod api;
 pub mod message;
 pub struct Client {
     server_addr: SocketAddr,

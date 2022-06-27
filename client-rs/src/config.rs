@@ -2,14 +2,29 @@ use eframe::egui::Visuals;
 
 use crate::theme::Theme;
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
+pub const CONFIG_PATH: &str = "test-client-config-rs";
+
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
 pub struct Config {
+    #[serde(skip)]
     pub theme: Theme,
+    pub api_key: String,
+    pub api_key_setted: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            theme: Default::default(),
+            api_key: Default::default(),
+            api_key_setted: false,
+        }
+    }
 }
 
 impl Config {
     pub fn new() -> Self {
-        let config: Config = confy::load("config").unwrap_or_default();
+        let config: Config = confy::load(CONFIG_PATH).unwrap();
         config
     }
 

@@ -1,6 +1,7 @@
 use eframe::egui;
 
 use crate::{
+    client::api::Repo,
     config::Config,
     pages::{headline::HeadLine, list::List, setting::Setting, talk::Talk, test::Test},
 };
@@ -42,7 +43,7 @@ impl Default for Router {
     }
 }
 impl Router {
-    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &mut Config) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &mut Config, repo: &mut Repo) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.page, Page::Article, "文章");
             ui.selectable_value(&mut self.page, Page::List, "列表");
@@ -53,7 +54,7 @@ impl Router {
         ui.separator();
         match self.page {
             Page::Article => {
-                self.article.ui(ui, cfg);
+                self.article.ui(ui, cfg, repo);
             }
             Page::Talk => {
                 self.talk.ui(ui);

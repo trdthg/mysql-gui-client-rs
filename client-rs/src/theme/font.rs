@@ -3,7 +3,7 @@ use eframe::{
     epaint::FontFamily,
 };
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Font {
     pub inner: FontDefinitions,
     pub selected: i8,
@@ -71,7 +71,6 @@ impl Font {
             .get_mut(&FontFamily::Proportional)
             .unwrap()
             .swap(0, self.selected as usize);
-        tracing::debug!("{:?}", self.inner.families[&FontFamily::Proportional]);
         // 更新 current
         self.current = self.selected;
         return Some(self.inner.clone());
