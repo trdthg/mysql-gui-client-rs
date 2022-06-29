@@ -10,13 +10,18 @@ pub struct App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        tracing::info!("更新配置");
         self.config.update(ctx);
-        if !self.config.api_key_setted {
-            self.render_config(ctx);
-            return;
-        }
+        // if !self.config.api_key_setted {
+        //     self.render_config(ctx);
+        //     return;
+        // }
+
+        tracing::info!("渲染 Top");
         self.render_top_panel(ctx, frame);
+        tracing::info!("渲染 Content");
         self.render_content(ctx);
+        tracing::info!("渲染 Footer");
         self.render_footer(ctx);
     }
 }
@@ -37,6 +42,7 @@ impl App {
     fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
+                tracing::debug!("开始渲染 Top！");
                 ui.with_layout(Layout::left_to_right(), |ui| {
                     ui.label(RichText::new("没什么用的软件").heading());
                 });
@@ -54,13 +60,16 @@ impl App {
                         self.config.theme.toogle_dark_mode();
                     }
                     // time
-                    let time = chrono::Local::now();
-
-                    ui.label(RichText::new(format!(
-                        "{} (时间戳)",
-                        time.timestamp_millis().to_string()
-                    )));
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let time = chrono::Local::now();
+                        ui.label(RichText::new(format!(
+                            "{} (时间戳)",
+                            time.timestamp_millis().to_string()
+                        )));
+                    }
                 });
+                tracing::debug!("渲染 Top 结束！");
             });
         });
     }
@@ -82,7 +91,7 @@ impl App {
 
     fn render_content(&mut self, ctx: &Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.router.ui(ui, &mut self.config, &mut self.repo);
+            self.router.ui(ui, ctx, &mut self.config, &mut self.repo);
         });
     }
 

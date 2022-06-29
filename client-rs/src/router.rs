@@ -1,9 +1,15 @@
-use eframe::egui;
+use eframe::egui::{self, Context};
 
 use crate::{
     client::api::Repo,
     config::Config,
-    pages::{headline::HeadLine, list::List, setting::Setting, talk::Talk, test::Test},
+    pages::{
+        headline::HeadLine,
+        list::List,
+        setting::Setting,
+        // talk::Talk,
+        // test::Test
+    },
 };
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -25,8 +31,8 @@ pub struct Router {
     page: Page,
     list: List,
     article: HeadLine,
-    talk: Talk,
-    test: Test,
+    // talk: Talk,
+    // test: Test,
     setting: Setting,
 }
 
@@ -36,14 +42,15 @@ impl Default for Router {
             page: Default::default(),
             article: HeadLine::default(),
             list: Default::default(),
-            talk: Default::default(),
-            test: Default::default(),
+            // talk: Default::default(),
+            // test: Default::default(),
             setting: Default::default(),
         }
     }
 }
+
 impl Router {
-    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &mut Config, repo: &mut Repo) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, ctx: &Context, cfg: &mut Config, repo: &mut Repo) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.page, Page::Article, "文章");
             ui.selectable_value(&mut self.page, Page::List, "列表");
@@ -57,16 +64,16 @@ impl Router {
                 self.article.ui(ui, cfg, repo);
             }
             Page::Talk => {
-                self.talk.ui(ui);
+                // self.talk.ui(ui);
             }
             Page::List => {
                 self.list.ui(ui);
             }
             Page::Other => {
-                self.test.ui(ui);
+                // self.test.ui(ui);
             }
             Page::Setting => {
-                self.setting.ui(ui, cfg);
+                self.setting.ui(ui, ctx, cfg);
             }
         }
     }

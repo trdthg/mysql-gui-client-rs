@@ -52,16 +52,6 @@ impl HeadLine {
         // let seq = Separator::default().spacing(20.);
         ui.separator();
         ui.add_space(5.);
-        // ui.collapsing("Theme", |ui| {
-        //     let dark = ui.add(Button::new("黑暗"));
-        //     let light = ui.add(Button::new("明亮"));
-        //     if dark.clicked() {
-        //         self.config.dark_mode = true;
-        //     }
-        //     if light.clicked() {
-        //         self.config.dark_mode = false;
-        //     }
-        // });    ui.add(seq);
     }
 
     fn render_articles(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {
@@ -81,22 +71,19 @@ impl HeadLine {
                 ui.heading(
                     RichText::new(format!("#{} {}", i + 1, &a.title))
                         .strong()
-                        .size(22.)
-                        .color(cfg.theme.colors.h2),
+                        .heading(), // .size(22.), // .color(cfg.theme.colors.h2),
                 );
 
                 ui.add_space(5.0);
                 ui.label(
-                    RichText::new(&a.desc).color(cfg.theme.colors.body), // .font(FontId::proportional(40.0)),
+                    RichText::new(&a.desc), // .color(cfg.theme.colors.body), // .font(FontId::proportional(40.0)),
                 );
 
                 ui.add_space(5.0);
                 ui.label(
-                    RichText::new(format!("{} 发布于 {}", a.author, a.time))
-                        .size(12.)
-                        .color(cfg.theme.colors.body), // .font(FontId::proportional(40.0)),
+                    RichText::new(format!("{} 发布于 {}", a.author, a.time)), // .color(cfg.theme.colors.body), // .font(FontId::proportional(40.0)),
                 );
-                ui.style_mut().visuals.hyperlink_color = cfg.theme.colors.link;
+                // ui.style_mut().visuals.hyperlink_color = cfg.theme.colors.link;
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), 0.),
                     Layout::right_to_left(),
@@ -111,6 +98,8 @@ impl HeadLine {
         });
     }
 }
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct NewsArticle {
     pub id: String,
     pub title: String,
@@ -118,6 +107,19 @@ pub struct NewsArticle {
     pub url: String,
     pub author: String,
     pub time: String,
+}
+
+impl Default for NewsArticle {
+    fn default() -> Self {
+        Self {
+            id: Default::default(),
+            title: "文章标题".to_owned(),
+            desc: Default::default(),
+            url: Default::default(),
+            author: Default::default(),
+            time: Default::default(),
+        }
+    }
 }
 
 impl HeadLine {

@@ -3,6 +3,7 @@ use self::{colors::Colors, font::Font};
 pub mod colors;
 pub mod font;
 pub mod style;
+pub mod text;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Theme {

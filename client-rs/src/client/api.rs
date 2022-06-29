@@ -20,6 +20,28 @@ struct Data {
     attributes: Value,
 }
 
+#[cfg(target_arch = "wasm32")]
+pub async fn fetch_articles() -> Vec<NewsArticle> {
+    // let url = "https://www.gcores.com/gapi/v1/articles?page[limit]=10&sort=-published-at&include=category,user&filter[is-news]=true&fields[articles]=title,desc,is-published,thumb,app-cover,cover,comments-count,likes-count,bookmarks-count,is-verified,published-at,option-is-official,option-is-focus-showcase,duration,category,user";
+
+    // let req = reqwasm::http::Request::get(&url);
+    // let resp = req.send().await.unwrap();
+    // let response: Vec<NewsArticle> = resp.json().await.unwrap();
+
+    // let req = ureq::get(&url);
+    // let response: Vec<NewsArticle> = req.call().unwrap().into_json().unwrap();
+
+    let response = vec![
+        NewsArticle::default(),
+        NewsArticle::default(),
+        NewsArticle::default(),
+        NewsArticle::default(),
+        NewsArticle::default(),
+    ];
+    response
+}
+
+#[cfg(target_arch = "x86_64")]
 pub async fn fetch_articles() -> Vec<NewsArticle> {
     let url = "https://www.gcores.com/gapi/v1/articles?page[limit]=10&sort=-published-at&include=category,user&filter[is-news]=true&fields[articles]=title,desc,is-published,thumb,app-cover,cover,comments-count,likes-count,bookmarks-count,is-verified,published-at,option-is-official,option-is-focus-showcase,duration,category,user";
     let resp = reqwest::get(url)

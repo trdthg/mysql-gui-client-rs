@@ -52,7 +52,3 @@ fn main() -> anyhow::Result<()> {
     options.initial_window_size = Some(Vec2::new(480.0, 740.0));
     eframe::run_native("我的应用程序", options, Box::new(|_cc| Box::new(app)));
 }
-
-async fn fetch() -> anyhow::Result<()> {
-    Ok(())
-}

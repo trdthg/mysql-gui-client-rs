@@ -1,4 +1,4 @@
-use eframe::egui::Button;
+use eframe::egui::{Button, CollapsingHeader, Context};
 
 use crate::config::Config;
 
@@ -6,7 +6,8 @@ use crate::config::Config;
 pub struct Setting {}
 
 impl Setting {
-    pub fn ui(&mut self, ui: &mut eframe::egui::Ui, cfg: &mut Config) {
+    pub fn ui(&mut self, ui: &mut eframe::egui::Ui, ctx: &Context, cfg: &mut Config) {
+        ctx.settings_ui(ui);
         ui.collapsing("Theme", |ui| {
             let dark = ui.add(Button::new("黑暗"));
             let light = ui.add(Button::new("明亮"));
