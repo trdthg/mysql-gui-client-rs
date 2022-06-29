@@ -2,12 +2,13 @@
 
 use std::{sync::mpsc, thread};
 
+use api::Repo;
 use app::App;
-use client::api::{self, Repo};
 use eframe::emath::Vec2;
 use pages::headline::NewsArticle;
 use tracing::Level;
 
+mod api;
 mod app;
 mod client;
 mod config;

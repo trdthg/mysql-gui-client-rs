@@ -1,12 +1,6 @@
-use std::{collections::HashMap, sync::mpsc::Receiver};
-
 use serde_json::Value;
 
 use crate::pages::headline::NewsArticle;
-
-pub struct Repo {
-    pub article_channel: Receiver<Vec<NewsArticle>>,
-}
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Response {

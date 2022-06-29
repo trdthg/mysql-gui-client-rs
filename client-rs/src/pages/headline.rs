@@ -3,7 +3,7 @@ use eframe::{
     emath::Vec2,
 };
 
-use crate::{client::api::Repo, config::Config};
+use crate::{api::Repo, config::Config};
 
 pub struct HeadLine {
     articles: Vec<NewsArticle>,
@@ -34,24 +34,12 @@ impl HeadLine {
         Self { articles }
     }
 
-    pub fn update_articles(&mut self) {
-
-        // let a = "
-        // https://www.gcores.com/gapi/v1/articles?
-        // page[limit]=${limit}
-        // &page[offset]=${offset}
-        // &sort=-published-at
-        // &include=category,user
-        // &filter[is-news]=${isNews}
-        // &fields[articles]=title,desc,is-published,thumb,app-cover,cover,comments-count,likes-count,bookmarks-count,is-verified,published-at,option-is-official,option-is-focus-showcase,duration,category,user";
-    }
+    pub fn update_articles(&mut self) {}
 
     fn render_header(&self, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| ui.heading("机核网 News"));
         ui.add_space(5.);
-        // let seq = Separator::default().spacing(20.);
         ui.separator();
-        ui.add_space(5.);
     }
 
     fn render_articles(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {

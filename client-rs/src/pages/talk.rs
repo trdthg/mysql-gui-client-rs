@@ -26,20 +26,6 @@ impl Default for State {
     }
 }
 
-impl Default for Talk {
-    fn default() -> Self {
-        let client = Client::new(([127, 0, 0, 1], 1234)).unwrap();
-        Self {
-            count: Default::default(),
-            inner_count: Default::default(),
-            client,
-            state: Default::default(),
-            text: Default::default(),
-            msg_buf: Default::default(),
-        }
-    }
-}
-
 impl Talk {
     pub fn new(client: Client) -> Self {
         Self {

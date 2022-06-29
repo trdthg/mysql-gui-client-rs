@@ -1,6 +1,16 @@
-use eframe::egui::{self, Button, Context, Hyperlink, Layout, RichText, TopBottomPanel};
+use std::{sync::mpsc, thread};
 
-use crate::{client::api::Repo, config::Config, router::Router};
+use eframe::{
+    egui::{self, Button, Context, Hyperlink, Layout, RichText, TopBottomPanel},
+    epaint::Color32,
+};
+
+use crate::{
+    api::{self, Repo},
+    config::Config,
+    pages::headline::NewsArticle,
+    router::Router,
+};
 
 pub struct App {
     pub router: Router,
@@ -11,6 +21,7 @@ pub struct App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         tracing::info!("更新配置");
+        // ctx.set_debug_on_hover(true);
         self.config.update(ctx);
         // if !self.config.api_key_setted {
         //     self.render_config(ctx);
@@ -19,19 +30,21 @@ impl eframe::App for App {
 
         tracing::info!("渲染 Top");
         self.render_top_panel(ctx, frame);
-        tracing::info!("渲染 Content");
-        self.render_content(ctx);
+        tracing::info!("渲染 Side");
+        self.render_side(ctx);
         tracing::info!("渲染 Footer");
         self.render_footer(ctx);
+        tracing::info!("渲染 Content");
+        self.render_content(ctx, frame);
     }
 }
 
 impl App {
-    pub fn new(repo: Repo) -> Self {
+    pub fn new() -> Self {
         Self {
             router: Router::default(),
             config: Config::new(),
-            repo,
+            repo: Repo::new(),
         }
     }
 
@@ -40,11 +53,15 @@ impl App {
     }
 
     fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        // let f = egui::Frame::none()
+        //     .inner_margin(0.)
+        //     .outer_margin(0.)
+        //     .fill(Color32::RED);
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 tracing::debug!("开始渲染 Top！");
                 ui.with_layout(Layout::left_to_right(), |ui| {
-                    ui.label(RichText::new("没什么用的软件").heading());
+                    ui.label(RichText::new("软件").heading());
                 });
                 ui.with_layout(Layout::right_to_left(), |ui| {
                     let close_btn = ui.add(Button::new("关闭"));
@@ -89,8 +106,14 @@ impl App {
         });
     }
 
-    fn render_content(&mut self, ctx: &Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    fn render_side(&mut self, ctx: &Context) {}
+
+    fn render_content(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        let f = eframe::egui::Frame::none()
+            .inner_margin(0.)
+            .outer_margin(0.)
+            .fill(Color32::WHITE);
+        egui::CentralPanel::default().frame(f).show(ctx, |ui| {
             self.router.ui(ui, ctx, &mut self.config, &mut self.repo);
         });
     }

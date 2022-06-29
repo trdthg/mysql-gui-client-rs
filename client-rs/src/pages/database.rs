@@ -1,9 +1,9 @@
-use eframe::egui::{self, ScrollArea};
+use eframe::egui::{self, Context, RichText, ScrollArea};
 
-pub struct List {
+pub struct DataBase {
     items: Vec<String>,
 }
-impl Default for List {
+impl Default for DataBase {
     fn default() -> Self {
         Self {
             items: Default::default(),
@@ -11,8 +11,29 @@ impl Default for List {
     }
 }
 
-impl List {
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
+impl DataBase {
+    pub fn ui(&mut self, ui: &mut egui::Ui, ctx: &Context) {
+        let f = egui::Frame::none();
+        egui::SidePanel::left("left_panel")
+            .frame(f)
+            .show_inside(ui, |ui| {
+                ui.heading("侧边栏");
+                ui.vertical_centered(|ui| {
+                    ui.collapsing(RichText::new("大标题 1"), |ui| {
+                        if ui.button("子栏目 1").clicked() {}
+                        if ui.button("子栏目 2").clicked() {}
+                        if ui.button("子栏目 3").clicked() {}
+                    });
+                });
+            });
+        egui::CentralPanel::default()
+            .frame(f)
+            .show_inside(ui, |ui| {
+                self.show_content(ui, ctx);
+            });
+    }
+
+    pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
         let scroll_area = ScrollArea::vertical()
             .max_height(200.0)
             .auto_shrink([false; 2]);
