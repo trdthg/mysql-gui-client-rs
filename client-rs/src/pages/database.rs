@@ -1,38 +1,45 @@
-use eframe::egui::{self, Context, RichText, ScrollArea};
+use eframe::{
+    egui::{self, Context, RichText, ScrollArea},
+    epaint::Color32,
+    App,
+};
 
 pub struct DataBase {
     items: Vec<String>,
 }
-impl Default for DataBase {
-    fn default() -> Self {
-        Self {
-            items: Default::default(),
-        }
+
+impl App for DataBase {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::panel::TopBottomPanel::top("数据库管理").show(ctx, |ui| {
+            //
+            ui.label("top");
+        });
+
+        egui::panel::TopBottomPanel::bottom("数据库管理 2").show(ctx, |ui| {
+            //
+            ui.label("bottom");
+        });
+
+        egui::SidePanel::left("数据库侧边栏").show(ctx, |ui| {
+            ui.heading("侧边栏");
+            ui.vertical_centered(|ui| {
+                ui.collapsing(RichText::new("大标题 1"), |ui| {
+                    if ui.button("子栏目 1").clicked() {}
+                    if ui.button("子栏目 2").clicked() {}
+                    if ui.button("子栏目 3").clicked() {}
+                });
+            });
+        });
+
+        egui::panel::CentralPanel::default().show(ctx, |ui| {
+            //
+            ui.label("central");
+            self.show_content(ui, ctx);
+        });
     }
 }
 
 impl DataBase {
-    pub fn ui(&mut self, ui: &mut egui::Ui, ctx: &Context) {
-        let f = egui::Frame::none();
-        egui::SidePanel::left("left_panel")
-            .frame(f)
-            .show_inside(ui, |ui| {
-                ui.heading("侧边栏");
-                ui.vertical_centered(|ui| {
-                    ui.collapsing(RichText::new("大标题 1"), |ui| {
-                        if ui.button("子栏目 1").clicked() {}
-                        if ui.button("子栏目 2").clicked() {}
-                        if ui.button("子栏目 3").clicked() {}
-                    });
-                });
-            });
-        egui::CentralPanel::default()
-            .frame(f)
-            .show_inside(ui, |ui| {
-                self.show_content(ui, ctx);
-            });
-    }
-
     pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
         let scroll_area = ScrollArea::vertical()
             .max_height(200.0)
@@ -60,5 +67,13 @@ impl DataBase {
                 current_scroll, max_scroll
             ));
         });
+    }
+}
+
+impl Default for DataBase {
+    fn default() -> Self {
+        Self {
+            items: Default::default(),
+        }
     }
 }

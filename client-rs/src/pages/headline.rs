@@ -85,6 +85,20 @@ impl HeadLine {
             }
         });
     }
+
+    fn render_footer(&self, ui: &mut egui::Ui) {
+        ui.horizontal_centered(|ui| {
+            ui.label(RichText::new("Api Source: xxx.com").monospace());
+            ui.add(egui::Hyperlink::from_label_and_url(
+                RichText::new("Made with egui").monospace(),
+                "https://github.com/emilk/egui",
+            ));
+            ui.add(egui::Hyperlink::from_label_and_url(
+                RichText::new("Github").monospace(),
+                "https://github.com/creativcoder/headlines",
+            ));
+        });
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -116,5 +130,7 @@ impl HeadLine {
         self.render_header(ui);
 
         self.render_articles(ui, cfg, repo);
+
+        self.render_footer(ui);
     }
 }

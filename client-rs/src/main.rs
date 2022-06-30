@@ -22,5 +22,5 @@ fn main() -> anyhow::Result<()> {
     options.resizable = true;
     options.vsync = true;
     options.initial_window_size = Some(Vec2::new(480.0, 740.0));
-    eframe::run_native("我的应用程序", options, Box::new(|_cc| Box::new(app)));
+    eframe::run_native("My App", options, Box::new(|_cc| Box::new(app)));
 }
