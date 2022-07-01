@@ -37,41 +37,104 @@ impl eframe::App for Table {
             ui.horizontal(|ui| {
                 // egui::reset_button(ui, self);
                 // ui.add(crate::egui_github_link_file!());
-                ui.label(format!(
-                    "当前滚动条偏移量：{:.0}/{:.0} px",
-                    self.current_scroll, self.max_scroll
-                ));
+                ui.label(format!("当前滚动条偏移量：px",));
+                ui.horizontal(|ui| {
+                    if ui.button("奇妙的东西").clicked() {};
+                    if ui.button("奇妙的东西").clicked() {};
+                    if ui.button("奇妙的东西").clicked() {};
+                });
             });
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
             //
             self.show_content(ui, ctx);
+            //             use egui_extras::{Size, StripBuilder};
+            // StripBuilder::new(ui)
+            //     .size(Size::remainder()) // for the table
+            //     .size(Size::exact(10.)) // for the source code link
+            //     .vertical(|mut strip| {
+            //         strip.cell(|ui| {
+            //             self.show_content(ui, ctx);
+            //         });
+            //         strip.cell(|ui| {
+            //             ui.horizontal(|ui| {
+            //                 if ui.button("奇妙的东西").clicked() {};
+            //                 if ui.button("奇妙的东西").clicked() {};
+            //                 if ui.button("奇妙的东西").clicked() {};
+            //             });
+            //         });
+            //     });
         });
     }
 }
 
 impl Table {
     pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
-        ui.vertical(|ui| {
-            let scroll_area = ScrollArea::vertical().auto_shrink([false; 2]);
-            let (current_scroll, max_scroll) = scroll_area
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        for item in 1..=50 {
-                            ui.label(format!("This is item {}", item));
-                        }
+        use egui_extras::{Size, TableBuilder};
+        TableBuilder::new(ui)
+            .striped(true)
+            .scroll(true)
+            .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+            .column(Size::initial(60.0).at_least(40.0))
+            .column(Size::initial(60.0).at_least(40.0))
+            .column(Size::initial(60.0).at_least(40.0))
+            .column(Size::initial(60.0).at_least(40.0))
+            .column(Size::initial(60.0).at_least(40.0))
+            .column(Size::initial(90.0).at_least(90.0))
+            .column(Size::remainder().at_least(60.0))
+            // .resizable(self.resizable)
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.heading("Row");
+                });
+                header.col(|ui| {
+                    ui.heading("Clock");
+                });
+                header.col(|ui| {
+                    ui.heading("Content");
+                });
+                header.col(|ui| {
+                    ui.heading("Extra 1");
+                });
+                header.col(|ui| {
+                    ui.heading("Extra 2");
+                });
+                header.col(|ui| {
+                    ui.heading("Extra 3");
+                });
+            })
+            .body(|mut body| {
+                for row_index in 0..100 {
+                    let is_thick = row_index % 2 == 0;
+                    let row_height = if is_thick { 30.0 } else { 18.0 };
+                    body.row(row_height, |mut row| {
+                        row.col(|ui| {
+                            ui.label(row_index.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(row_index.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.style_mut().wrap = Some(false);
+                            if is_thick {
+                                ui.heading("Extra thick row");
+                            } else {
+                                ui.label("Normal row");
+                            }
+                        });
+                        row.col(|ui| {
+                            ui.label(row_index.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(row_index.to_string());
+                        });
+                        row.col(|ui| {
+                            let mut text = format!("{row_index}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+                            ui.text_edit_singleline(&mut text);
+                        });
                     });
-
-                    let margin = ui.visuals().clip_rect_margin;
-                    let current_scroll = ui.clip_rect().top() - ui.min_rect().top() + margin;
-                    let max_scroll =
-                        ui.min_rect().height() - ui.clip_rect().height() + 2.0 * margin;
-                    (current_scroll, max_scroll)
-                })
-                .inner;
-            self.current_scroll = current_scroll;
-            self.max_scroll = max_scroll;
-        });
+                }
+            });
     }
 }

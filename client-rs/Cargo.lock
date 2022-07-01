@@ -207,6 +207,7 @@ dependencies = [
  "confy",
  "console_error_panic_hook",
  "eframe",
+ "egui_extras",
  "gloo-timers",
  "js-sys",
  "log",
@@ -542,6 +543,16 @@ dependencies = [
  "tracing",
  "webbrowser",
  "winit",
+]
+
+[[package]]
+name = "egui_extras"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877bfcce06463cdbcfd7f4efd57608b1384d6d9ae03b33e503fbba1d1a899a52"
+dependencies = [
+ "egui",
+ "serde",
 ]
 
 [[package]]
