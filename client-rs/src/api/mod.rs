@@ -1,23 +1,21 @@
-use std::{
-    sync::mpsc::{self, Receiver},
-    thread,
-};
-
-use crate::pages::headline::NewsArticle;
+use std::thread;
 
 pub mod article;
 
 pub use article::fetch_articles;
+
+use crate::util::duplex_channel::{self, DuplexConsumer};
+
+use self::article::NewsArticle;
 pub struct Repo {
-    pub article_channel: Receiver<Vec<NewsArticle>>,
+    pub article: DuplexConsumer<Vec<NewsArticle>>,
 }
+
 impl Repo {
     pub(crate) fn new() -> Repo {
-        let (sender, receiver) = mpsc::channel::<Vec<NewsArticle>>();
+        let (consumer, mut producer) = duplex_channel::channel::<Vec<NewsArticle>>();
 
-        let repo = Repo {
-            article_channel: receiver,
-        };
+        let repo = Repo { article: consumer };
 
         thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -26,10 +24,10 @@ impl Repo {
                 .unwrap();
             runtime.block_on(async move {
                 if let Err(e) = tokio::spawn(async move {
-                    let articles = fetch_articles().await;
-                    if let Err(e) = sender.send(articles) {
-                        tracing::error!("Channel 发送数据失败：{:?}", e);
-                    }
+                    // 不断等待请求更新
+                    producer
+                        .wait_for_produce(|| Box::pin(async { fetch_articles().await }))
+                        .await;
                 })
                 .await
                 {

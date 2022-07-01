@@ -1,12 +1,7 @@
-use std::{sync::mpsc, thread};
-
-use eframe::{
-    egui::{self, Button, Context, Hyperlink, Layout, RichText, TopBottomPanel},
-    epaint::Color32,
-};
+use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
 
 use crate::{
-    api::{self, Repo},
+    api::Repo,
     config::Config,
     router::{Page, Router},
 };
@@ -19,7 +14,7 @@ pub struct App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        tracing::info!("更新配置");
+        tracing::trace!("更新配置");
         // ctx.set_debug_on_hover(true);
         self.config.update(ctx);
         // if !self.config.api_key_setted {
@@ -27,13 +22,13 @@ impl eframe::App for App {
         //     return;
         // }
 
-        tracing::info!("渲染 Top");
+        tracing::trace!("渲染 Top");
         self.render_top_panel(ctx, frame);
-        tracing::info!("渲染 Side");
+        tracing::trace!("渲染 Side");
         self.render_side(ctx);
-        tracing::info!("渲染 Footer");
+        tracing::trace!("渲染 Footer");
         self.render_footer(ctx);
-        tracing::info!("渲染 Content");
+        tracing::trace!("渲染 Content");
         self.render_content(ctx, frame);
     }
 }
@@ -54,7 +49,7 @@ impl App {
     fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                tracing::debug!("开始渲染 Top！");
+                tracing::trace!("开始渲染 Top！");
                 ui.with_layout(Layout::left_to_right(), |ui| {
                     ui.label(RichText::new("App").heading());
                     egui::menu::bar(ui, |ui| {
@@ -67,10 +62,6 @@ impl App {
                     let close_btn = ui.add(Button::new("✖")); // ✕
                     if close_btn.clicked() {
                         frame.quit();
-                    }
-                    let refresh_btn = ui.add(Button::new("↺")); // ↻ ↺
-                    if refresh_btn.clicked() {
-                        // frame.ref
                     }
                     if ctx.style().visuals.dark_mode {
                         let theme_btn = ui.add(Button::new("🌙"));
@@ -97,7 +88,7 @@ impl App {
                         )));
                     }
                 });
-                tracing::debug!("渲染 Top 结束！");
+                tracing::trace!("渲染 Top 结束！");
             });
         });
     }

@@ -3,13 +3,16 @@ use eframe::{
     emath::Vec2,
 };
 
-use crate::{api::Repo, config::Config};
+use crate::{
+    api::{article::NewsArticle, Repo},
+    config::Config,
+};
 
-pub struct HeadLine {
+pub struct Article {
     articles: Vec<NewsArticle>,
 }
 
-impl Default for HeadLine {
+impl Default for Article {
     fn default() -> Self {
         let articles = (0..0)
             .map(|i| NewsArticle {
@@ -24,33 +27,51 @@ impl Default for HeadLine {
                 time: "00:00".to_string(),
             })
             .collect();
-        Self { articles }
+        Self {
+            articles,
+        }
     }
 }
 
-impl HeadLine {
-    pub fn new() -> Self {
-        let articles = vec![];
-        Self { articles }
+impl Article {
+
+    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {
+        //
+        self.render_header(ui, repo);
+
+        self.render_articles(ui, repo);
+
+        self.render_footer(ui);
     }
 
     pub fn update_articles(&mut self) {}
 
-    fn render_header(&self, ui: &mut egui::Ui) {
-        ui.vertical_centered(|ui| ui.heading("机核网 News"));
+    fn render_header(&mut self, ui: &mut egui::Ui, repo: &mut Repo) {
+        ui.vertical_centered(|ui| {
+            ui.heading("机核网 News");
+        });
         ui.add_space(5.);
         ui.separator();
     }
 
-    fn render_articles(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {
-        if self.articles.is_empty() {
-            if let Ok(articles) = repo.article_channel.try_recv() {
-                self.articles = articles;
+    fn render_articles(&mut self, ui: &mut egui::Ui, repo: &mut Repo) {
+        if ui.button("↺").clicked() {
+            tracing::debug!("清空");
+            self.articles.clear();
+            if let Err(e) = repo.article.send() {
+                tracing::debug!("连接已关闭：{:?}", e);
             }
         }
+        if let Ok(articles) = repo.article.try_recv() {
+            self.articles = articles;
+        }
+        if self.articles.is_empty() {
+            ui.centered_and_justified(|ui| ui.spinner());
+        }
+
         let scroll_area = ScrollArea::vertical()
             // .max_height(200.0)
-            .always_show_scroll(true)
+            .always_show_scroll(false)
             .auto_shrink([false; 2]);
 
         scroll_area.show(ui, |ui| {
@@ -98,39 +119,5 @@ impl HeadLine {
                 "https://github.com/creativcoder/headlines",
             ));
         });
-    }
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct NewsArticle {
-    pub id: String,
-    pub title: String,
-    pub desc: String,
-    pub url: String,
-    pub author: String,
-    pub time: String,
-}
-
-impl Default for NewsArticle {
-    fn default() -> Self {
-        Self {
-            id: Default::default(),
-            title: "文章标题".to_owned(),
-            desc: Default::default(),
-            url: Default::default(),
-            author: Default::default(),
-            time: Default::default(),
-        }
-    }
-}
-
-impl HeadLine {
-    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {
-        //
-        self.render_header(ui);
-
-        self.render_articles(ui, cfg, repo);
-
-        self.render_footer(ui);
     }
 }

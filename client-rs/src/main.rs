@@ -11,6 +11,7 @@ mod config;
 mod pages;
 mod router;
 mod theme;
+mod util;
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()

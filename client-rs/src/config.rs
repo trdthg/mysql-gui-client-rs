@@ -1,5 +1,3 @@
-use eframe::egui::Visuals;
-
 use crate::theme::Theme;
 
 pub const CONFIG_PATH: &str = "test-client-config-rs";
