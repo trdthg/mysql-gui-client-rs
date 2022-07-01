@@ -1,2 +1,7 @@
 *.js
 *.wasm
+
+/web/dist
+
+/assets/font
+/assets/fonts

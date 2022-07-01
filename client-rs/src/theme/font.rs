@@ -19,11 +19,11 @@ impl Default for Font {
 
         fonts.font_data.insert(
             "霞鹜文楷".to_owned(),
-            FontData::from_static(include_bytes!("../../assets/font/LXGWWenKai-Regular.ttf")),
+            FontData::from_static(include_bytes!("../../assets/fonts/LXGWWenKai-Regular.ttf")),
         );
         fonts.font_data.insert(
             "微软雅黑".to_owned(),
-            FontData::from_static(include_bytes!("../../assets/font/微软雅黑.ttf")),
+            FontData::from_static(include_bytes!("../../assets/fonts/微软雅黑.ttf")),
         );
 
         // 设定优先级
