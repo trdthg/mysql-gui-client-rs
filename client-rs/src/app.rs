@@ -102,9 +102,9 @@ impl App {
         });
     }
     fn render_footer(&mut self, ctx: &Context) {
-        TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            //
-        });
+        // TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+        //     //
+        // });
     }
 
     fn render_side(&mut self, ctx: &Context) {}

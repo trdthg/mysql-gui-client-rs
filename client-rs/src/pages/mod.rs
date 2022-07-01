@@ -10,7 +10,6 @@ pub mod database;
 pub mod headline;
 pub mod setting;
 pub mod talk;
-
 // ----------------------------------------------------------------------------
 
 /// Something to view in the demo windows

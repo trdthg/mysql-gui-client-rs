@@ -1,4 +1,6 @@
-use crate::pages::{database::DataBase, headline::HeadLine, setting::Setting, talk::Talk};
+use crate::pages::{
+    database::database::DataBase, headline::HeadLine, setting::Setting, talk::Talk,
+};
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
