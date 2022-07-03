@@ -4,8 +4,8 @@ use eframe::{
 };
 
 use crate::{
-    api::{article::NewsArticle, Repo},
     config::Config,
+    server::{entity::NewsArticle, Repo},
 };
 
 pub struct Article {
@@ -27,14 +27,11 @@ impl Default for Article {
                 time: "00:00".to_string(),
             })
             .collect();
-        Self {
-            articles,
-        }
+        Self { articles }
     }
 }
 
 impl Article {
-
     pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {
         //
         self.render_header(ui, repo);

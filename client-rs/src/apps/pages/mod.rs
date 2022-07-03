@@ -6,8 +6,6 @@
 
 use eframe::egui;
 
-pub mod article;
-pub mod database;
 pub mod setting;
 pub mod talk;
 // ----------------------------------------------------------------------------

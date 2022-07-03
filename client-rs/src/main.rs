@@ -1,24 +1,27 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use app::App;
-use eframe::emath::Vec2;
-use tracing::Level;
-
-mod api;
 mod app;
+mod apps;
 mod client;
 mod config;
-mod pages;
 mod router;
+mod server;
 mod theme;
 mod util;
+
+use app::App;
+use eframe::emath::Vec2;
+use server::Server;
+use tracing::Level;
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
 
-    let app = App::new();
+    let mut server = Server::new();
+
+    let app = App::new(server);
     let mut options = eframe::NativeOptions::default();
     options.resizable = true;
     options.vsync = true;

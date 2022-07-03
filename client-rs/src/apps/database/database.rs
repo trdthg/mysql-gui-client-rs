@@ -3,12 +3,12 @@ use eframe::{
     App,
 };
 
-use crate::{api::mysql::ConnectionConfig, util::duplex_channel::DuplexConsumer};
+use crate::{server::api::mysql::ConnectionConfig, util::duplex_channel::DuplexConsumer};
 
 use super::table::Table;
 
+
 pub struct DataBase {
-    items: Vec<String>,
     state: String,
     conns: Vec<Connection>,
     table: Table,
@@ -63,7 +63,6 @@ impl App for DataBase {
 impl DataBase {
     pub fn new(conn_manager: DuplexConsumer<ConnectionConfig, Connection>) -> Self {
         Self {
-            items: Default::default(),
             conns: vec![],
             state: "aaa".into(),
             table: Default::default(),

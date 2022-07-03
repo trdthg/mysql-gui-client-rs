@@ -35,17 +35,15 @@ impl<S, D> DuplexProducer<S, D> {
         Fut: Future<Output = D>,
     {
         loop {
-            tracing::debug!("等待信号");
             match self.signal_chan.recv().await {
                 None => {
-                    // tracing::error!("信号接收失败：{}", e);
-                    tracing::error!("信号接收失败：");
+                    tracing::error!("发送方已关闭");
                 }
                 Some(_) => {
                     let res = f().await;
                     if let Err(e) = self.data_chan.send(res) {
-                        // tracing::error!("发送请求结果失败：{:?}", e);
-                        tracing::error!("发送请求结果失败");
+                        tracing::error!("发送连接结果失败，GUI 可能停止工作");
+                        continue;
                     }
                     tracing::debug!("发送请求结果成功");
                 }
@@ -58,19 +56,16 @@ impl<S, D> DuplexProducer<S, D> {
         F: Fn(S) -> Pin<Box<Fut>>,
         Fut: Future<Output = D>,
     {
-        tracing::debug!("等待信号");
         loop {
             match self.signal_chan.recv().await {
                 None => {
-                    // tracing::error!("信号接收失败：{}", e);
-                    tracing::error!("信号接收失败");
+                    tracing::error!("发送方已关闭");
                 }
                 Some(signal) => {
                     let res = f(signal).await;
                     if let Err(e) = self.data_chan.send(res) {
-                        // tracing::error!("发送请求结果失败：{:?}", e);
-                        tracing::error!("发送请求结果失败");
-                        // break;
+                        tracing::error!("发送执行结果失败，GUI 可能停止工作");
+                        continue;
                     }
                     tracing::debug!("发送请求结果成功");
                 }

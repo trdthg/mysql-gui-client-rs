@@ -1,11 +1,10 @@
 use crate::{
-    api::{mysql::ConnectionConfig, Repo},
-    pages::{
-        article::Article,
+    apps::{
+        article::article::Article,
         database::database::{Connection, DataBase},
-        setting::Setting,
-        talk::Talk,
+        pages::setting::Setting,
     },
+    server::api::mysql::ConnectionConfig,
     util::duplex_channel::DuplexConsumer,
 };
 

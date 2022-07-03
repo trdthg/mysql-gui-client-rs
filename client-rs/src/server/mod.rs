@@ -1,23 +1,26 @@
 use std::{collections::HashMap, sync::Mutex, thread};
 
-pub mod article;
-pub mod mysql;
-pub use article::fetch_articles;
 use sqlx::Pool;
-
+pub mod api;
+pub mod entity;
 use crate::{
-    pages::database::database::Connection,
+    apps::database::database::Connection,
+    server::api::fetch_articles,
     util::duplex_channel::{self, DuplexConsumer},
 };
 
-use self::{article::NewsArticle, mysql::ConnectionConfig};
+use api::mysql::ConnectionConfig;
+
+use self::entity::NewsArticle;
 pub struct Repo {
     pub article: DuplexConsumer<(), Vec<NewsArticle>>,
     pub conn_manager: Option<DuplexConsumer<ConnectionConfig, Connection>>,
 }
 
-impl Repo {
-    pub(crate) fn new() -> Repo {
+pub struct Server;
+
+impl Server {
+    pub fn new() -> Repo {
         let (consumer, producer) = duplex_channel::channel::<(), Vec<NewsArticle>>();
         let (sql_sender, sql_executor) = duplex_channel::channel::<ConnectionConfig, Connection>();
 
