@@ -58,7 +58,7 @@ impl Article {
         if ui.button("↺").clicked() {
             tracing::debug!("清空");
             self.articles.clear();
-            if let Err(e) = repo.article.send() {
+            if let Err(e) = repo.article.send(()) {
                 tracing::debug!("连接已关闭：{:?}", e);
             }
         }

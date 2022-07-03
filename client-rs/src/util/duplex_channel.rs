@@ -1,54 +1,87 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::mpsc::{self, Receiver, Sender},
-};
+use std::{future::Future, pin::Pin};
 
-pub struct DuplexConsumer<T> {
-    data_chan: Receiver<T>,
-    signal_chan: Sender<()>,
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+
+pub struct DuplexConsumer<S, D> {
+    signal_chan: UnboundedSender<S>,
+    data_chan: UnboundedReceiver<D>,
 }
 
-impl<T> DuplexConsumer<T> {
-    pub fn send(&mut self) -> Result<(), mpsc::SendError<()>> {
-        self.signal_chan.send(())
+impl<S, D> DuplexConsumer<S, D> {
+    pub fn send(&mut self, signal: S) -> Result<(), tokio::sync::mpsc::error::SendError<S>> {
+        self.signal_chan.send(signal)
     }
-    pub fn try_recv(&mut self) -> Result<T, mpsc::TryRecvError> {
+
+    pub fn try_recv(&mut self) -> Result<D, tokio::sync::mpsc::error::TryRecvError> {
         self.data_chan.try_recv()
     }
 }
 
-pub struct DuplexProducer<T> {
-    data_chan: Sender<T>,
-    signal_chan: Receiver<()>,
+pub struct DuplexProducer<S, D> {
+    signal_chan: UnboundedReceiver<S>,
+    data_chan: UnboundedSender<D>,
 }
 
-unsafe impl<T: Send> Send for DuplexConsumer<T> {}
-unsafe impl<T: Send> Send for DuplexProducer<T> {}
+unsafe impl<D, S> Send for DuplexConsumer<S, D> {}
+unsafe impl<D, S> Send for DuplexProducer<S, D> {}
 
-impl<T> DuplexProducer<T> {
-    pub async fn wait_for_produce<F, Fut>(&mut self, f: F)
+impl<S, D> DuplexProducer<S, D> {
+    pub fn take(self) -> Self {
+        self
+    }
+    pub async fn wait_produce<F, Fut>(&mut self, f: F)
     where
         F: Fn() -> Pin<Box<Fut>>,
-        Fut: Future<Output = T>,
+        Fut: Future<Output = D>,
     {
         loop {
-            if let Err(_) = self.signal_chan.recv() {
-                break;
+            tracing::debug!("等待信号");
+            match self.signal_chan.recv().await {
+                None => {
+                    // tracing::error!("信号接收失败：{}", e);
+                    tracing::error!("信号接收失败：");
+                }
+                Some(_) => {
+                    let res = f().await;
+                    if let Err(e) = self.data_chan.send(res) {
+                        // tracing::error!("发送请求结果失败：{:?}", e);
+                        tracing::error!("发送请求结果失败");
+                    }
+                    tracing::debug!("发送请求结果成功");
+                }
             }
-            let res = f().await;
-            if let Err(e) = self.data_chan.send(res) {
-                tracing::error!("Channel 发送数据失败：{:?}", e);
-                break;
+        }
+    }
+
+    pub async fn wait_handle_produce<F, Fut>(&mut self, f: F)
+    where
+        F: Fn(S) -> Pin<Box<Fut>>,
+        Fut: Future<Output = D>,
+    {
+        tracing::debug!("等待信号");
+        loop {
+            match self.signal_chan.recv().await {
+                None => {
+                    // tracing::error!("信号接收失败：{}", e);
+                    tracing::error!("信号接收失败");
+                }
+                Some(signal) => {
+                    let res = f(signal).await;
+                    if let Err(e) = self.data_chan.send(res) {
+                        // tracing::error!("发送请求结果失败：{:?}", e);
+                        tracing::error!("发送请求结果失败");
+                        // break;
+                    }
+                    tracing::debug!("发送请求结果成功");
+                }
             }
-            tracing::debug!("Channel 发送数据成功");
         }
     }
 }
 
-pub fn channel<T>() -> (DuplexConsumer<T>, DuplexProducer<T>) {
-    let (sign_sender, sign_receiver) = mpsc::channel::<()>();
-    let (data_sender, data_receiver) = mpsc::channel::<T>();
+pub fn channel<S, D>() -> (DuplexConsumer<S, D>, DuplexProducer<S, D>) {
+    let (sign_sender, sign_receiver) = unbounded_channel::<S>();
+    let (data_sender, data_receiver) = unbounded_channel::<D>();
     (
         DuplexConsumer {
             data_chan: data_receiver,

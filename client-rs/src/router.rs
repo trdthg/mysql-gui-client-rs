@@ -1,4 +1,13 @@
-use crate::pages::{article::Article, database::database::DataBase, setting::Setting, talk::Talk};
+use crate::{
+    api::{mysql::ConnectionConfig, Repo},
+    pages::{
+        article::Article,
+        database::database::{Connection, DataBase},
+        setting::Setting,
+        talk::Talk,
+    },
+    util::duplex_channel::DuplexConsumer,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Page {
@@ -19,14 +28,14 @@ pub struct Router {
     pub setting: Setting,
 }
 
-impl Default for Router {
-    fn default() -> Self {
+impl Router {
+    pub fn new(conn_manager: DuplexConsumer<ConnectionConfig, Connection>) -> Self {
         // let client = Client::new(([127, 0, 0, 1], 1234)).unwrap();
         Self {
             page: Default::default(),
             article: Article::default(),
             setting: Default::default(),
-            database: Default::default(),
+            database: DataBase::new(conn_manager),
         }
     }
 }

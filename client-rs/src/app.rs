@@ -1,9 +1,11 @@
 use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
 
 use crate::{
-    api::Repo,
+    api::{mysql::ConnectionConfig, Repo},
     config::Config,
+    pages::database::database::Connection,
     router::{Page, Router},
+    util::duplex_channel::DuplexConsumer,
 };
 
 pub struct App {
@@ -35,10 +37,11 @@ impl eframe::App for App {
 
 impl App {
     pub fn new() -> Self {
+        let mut repo = Repo::new();
         Self {
-            router: Router::default(),
+            router: Router::new(repo.conn_manager.take().unwrap()),
             config: Config::new(),
-            repo: Repo::new(),
+            repo: repo,
         }
     }
 
