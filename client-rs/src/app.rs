@@ -1,6 +1,7 @@
 use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
 
 use crate::{
+    apps::{article::article::Article, database::database::DataBase},
     config::Config,
     router::{Page, Router},
     server::Repo,
@@ -9,7 +10,6 @@ use crate::{
 pub struct App {
     pub router: Router,
     pub config: Config,
-    pub repo: Repo,
 }
 
 impl eframe::App for App {
@@ -35,10 +35,15 @@ impl eframe::App for App {
 
 impl App {
     pub fn new(mut repo: Repo) -> Self {
+        let router = Router {
+            page: Default::default(),
+            article: Article::new(repo.article),
+            setting: Default::default(),
+            database: DataBase::new(repo.conn_manager.take().unwrap()),
+        };
         Self {
-            router: Router::new(repo.conn_manager.take().unwrap()),
+            router,
             config: Config::new(),
-            repo: repo,
         }
     }
 
@@ -103,7 +108,7 @@ impl App {
     fn render_content(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| match self.router.page {
             Page::Article => {
-                self.router.article.ui(ui, &self.config, &mut self.repo);
+                eframe::App::update(&mut self.router.article, ctx, frame)
             }
             Page::Setting => {
                 self.router.setting.ui(ui, ctx, &mut self.config);

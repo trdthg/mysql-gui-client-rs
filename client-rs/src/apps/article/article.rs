@@ -4,70 +4,74 @@ use eframe::{
 };
 
 use crate::{
-    config::Config,
     server::{entity::NewsArticle, Repo},
+    util::duplex_channel::DuplexConsumer,
 };
 
 pub struct Article {
     articles: Vec<NewsArticle>,
+    fetcher: DuplexConsumer<(), Vec<NewsArticle>>,
 }
 
-impl Default for Article {
-    fn default() -> Self {
-        let articles = (0..0)
-            .map(|i| NewsArticle {
-                id: i.to_string(),
-                title: format!("title: {}", i),
-                desc: format!(
-                    "desc: {} urally this is a very long sentence and you can't change it",
-                    i
-                ),
-                url: format!("url: http://localhsot:/{}", i),
-                author: "default".to_string(),
-                time: "00:00".to_string(),
-            })
-            .collect();
-        Self { articles }
+impl eframe::App for Article {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::panel::TopBottomPanel::top("数据库管理 top").show(ctx, |ui| {
+            self.render_header(ui);
+
+            // egui::menu::bar(ui, |ui| {
+            //     ui.selectable_value(&mut self.state, "".to_string(), "数据管理");
+            //     ui.selectable_value(&mut self.state, "".to_string(), "监控");
+            // });
+        });
+
+        egui::panel::TopBottomPanel::bottom("数据库管理 bottom").show(ctx, |ui| {
+            // ui.label("状态栏：您当前正在观测的数据库是 XXX");
+            self.render_footer(ui);
+        });
+
+        egui::SidePanel::left("数据库管理 sidebar").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Article");
+                if ui.button("↺").clicked() {
+                    tracing::debug!("清空");
+                    self.articles.clear();
+                    if let Err(e) = self.fetcher.send(()) {
+                        tracing::debug!("连接已关闭：{:?}", e);
+                    }
+                }
+            });
+            if let Ok(articles) = self.fetcher.try_recv() {
+                self.articles = articles;
+            }
+        });
+
+        egui::panel::CentralPanel::default().show(ctx, |ui| {
+            // self.table.update(ctx, frame);
+            self.render_articles(ui);
+        });
     }
 }
-
 impl Article {
-    pub fn ui(&mut self, ui: &mut egui::Ui, cfg: &Config, repo: &mut Repo) {
-        //
-        self.render_header(ui, repo);
-
-        self.render_articles(ui, repo);
-
-        self.render_footer(ui);
+    pub fn new(article_fetcher: DuplexConsumer<(), Vec<NewsArticle>>) -> Self {
+        Self {
+            articles: vec![],
+            fetcher: article_fetcher,
+        }
     }
 
-    pub fn update_articles(&mut self) {}
-
-    fn render_header(&mut self, ui: &mut egui::Ui, repo: &mut Repo) {
+    fn render_header(&mut self, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
             ui.heading("机核网 News");
         });
-        ui.add_space(5.);
-        ui.separator();
     }
 
-    fn render_articles(&mut self, ui: &mut egui::Ui, repo: &mut Repo) {
-        if ui.button("↺").clicked() {
-            tracing::debug!("清空");
-            self.articles.clear();
-            if let Err(e) = repo.article.send(()) {
-                tracing::debug!("连接已关闭：{:?}", e);
-            }
-        }
-        if let Ok(articles) = repo.article.try_recv() {
-            self.articles = articles;
-        }
+    fn render_articles(&mut self, ui: &mut egui::Ui) {
         if self.articles.is_empty() {
             ui.centered_and_justified(|ui| ui.spinner());
+            return;
         }
 
         let scroll_area = ScrollArea::vertical()
-            // .max_height(200.0)
             .always_show_scroll(false)
             .auto_shrink([false; 2]);
 

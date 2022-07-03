@@ -26,15 +26,3 @@ pub struct Router {
     pub database: DataBase,
     pub setting: Setting,
 }
-
-impl Router {
-    pub fn new(conn_manager: DuplexConsumer<ConnectionConfig, Connection>) -> Self {
-        // let client = Client::new(([127, 0, 0, 1], 1234)).unwrap();
-        Self {
-            page: Default::default(),
-            article: Article::default(),
-            setting: Default::default(),
-            database: DataBase::new(conn_manager),
-        }
-    }
-}

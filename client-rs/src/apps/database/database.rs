@@ -1,12 +1,13 @@
 use eframe::{
     egui::{self, Context, Layout, RichText, ScrollArea},
+    emath::Vec2,
+    epaint::Color32,
     App,
 };
 
 use crate::{server::api::mysql::ConnectionConfig, util::duplex_channel::DuplexConsumer};
 
 use super::table::Table;
-
 
 pub struct DataBase {
     state: String,
@@ -32,16 +33,13 @@ impl App for DataBase {
             });
         });
 
-        egui::panel::TopBottomPanel::bottom("数据库管理 bottom").show(ctx, |ui| {
-            //
-            ui.label("状态栏：您当前正在观测的数据库是 XXX");
-        });
-
         egui::SidePanel::left("数据库管理 sidebar").show(ctx, |ui| {
-            ui.heading("数据库连接");
-            if ui.button("新建连接").clicked() {
-                self.tmp_config_open = true;
-            };
+            ui.horizontal(|ui| {
+                ui.label("DATABASE");
+                if ui.button("+").clicked() {
+                    self.tmp_config_open = true;
+                };
+            });
             self.make_new_conn(ctx);
             if let Ok(v) = self.conn_manager.try_recv() {
                 tracing::info!("连接成功！");
@@ -57,6 +55,11 @@ impl App for DataBase {
         egui::panel::CentralPanel::default().show(ctx, |ui| {
             self.table.update(ctx, frame);
         });
+
+        egui::panel::TopBottomPanel::bottom("数据库管理 bottom").show(ctx, |ui| {
+            //
+            ui.label("状态栏：您当前正在观测的数据库是 XXX");
+        });
     }
 }
 
@@ -68,55 +71,59 @@ impl DataBase {
             table: Default::default(),
             tmp_config: ConnectionConfig::default(),
             tmp_config_open: false,
-            conn_manager: conn_manager,
+            conn_manager,
         }
     }
 
     fn render_conn(&self, ui: &mut egui::Ui) {
         for conn in self.conns.iter() {
             if conn.conn.is_none() {
-                ui.label(format!("{} {}", conn.config.name, "Failed"));
+                ui.label(format!("{}", conn.config.name));
+                ui.colored_label(Color32::RED, format!("{}", conn.config.name));
                 continue;
             }
-            let res = ui.collapsing(RichText::new(&conn.config.name), |ui| {
-                ui.collapsing(RichText::new("dev"), |ui| {
-                    ui.collapsing(RichText::new("tables"), |ui| {
-                        ui.collapsing(RichText::new("student"), |ui| {
-                            if ui.button("P: id").clicked() {}
-                            if ui.button("N: name").clicked() {}
-                            if ui.button("N: age").clicked() {}
+            let res = ui.collapsing(
+                RichText::new(&conn.config.name).color(Color32::GREEN),
+                |ui| {
+                    ui.collapsing(RichText::new("dev"), |ui| {
+                        ui.collapsing(RichText::new("tables"), |ui| {
+                            ui.collapsing(RichText::new("student"), |ui| {
+                                if ui.button("P: id").clicked() {}
+                                if ui.button("N: name").clicked() {}
+                                if ui.button("N: age").clicked() {}
+                            });
+                            ui.collapsing(RichText::new("class"), |ui| {
+                                if ui.button("P: id").clicked() {}
+                                if ui.button("N: name").clicked() {}
+                                if ui.button("N: teacher").clicked() {}
+                            });
                         });
-                        ui.collapsing(RichText::new("class"), |ui| {
-                            if ui.button("P: id").clicked() {}
-                            if ui.button("N: name").clicked() {}
-                            if ui.button("N: teacher").clicked() {}
+                        ui.collapsing(RichText::new("views"), |ui| {
+                            ui.collapsing(RichText::new("Student"), |ui| {
+                                ui.label("P: id");
+                                if ui.button("P: id").clicked() {}
+                                if ui.button("N: name").clicked() {}
+                                if ui.button("N: age").clicked() {}
+                            });
+                            ui.collapsing(RichText::new("Class"), |ui| {});
+                        });
+                        ui.collapsing(RichText::new("procedures"), |ui| {
+                            ui.collapsing(RichText::new("Student"), |ui| {
+                                if ui.label("P: id").clicked() {}
+                                if ui.button("N: name").clicked() {}
+                                if ui.button("N: age").clicked() {}
+                            });
+                        });
+                        ui.collapsing(RichText::new("functions"), |ui| {
+                            ui.collapsing(RichText::new("Student"), |ui| {
+                                if ui.button("P: id").clicked() {}
+                                if ui.button("N: name").clicked() {}
+                                if ui.button("N: age").clicked() {}
+                            });
                         });
                     });
-                    ui.collapsing(RichText::new("views"), |ui| {
-                        ui.collapsing(RichText::new("Student"), |ui| {
-                            ui.label("P: id");
-                            if ui.button("P: id").clicked() {}
-                            if ui.button("N: name").clicked() {}
-                            if ui.button("N: age").clicked() {}
-                        });
-                        ui.collapsing(RichText::new("Class"), |ui| {});
-                    });
-                    ui.collapsing(RichText::new("procedures"), |ui| {
-                        ui.collapsing(RichText::new("Student"), |ui| {
-                            if ui.label("P: id").clicked() {}
-                            if ui.button("N: name").clicked() {}
-                            if ui.button("N: age").clicked() {}
-                        });
-                    });
-                    ui.collapsing(RichText::new("functions"), |ui| {
-                        ui.collapsing(RichText::new("Student"), |ui| {
-                            if ui.button("P: id").clicked() {}
-                            if ui.button("N: name").clicked() {}
-                            if ui.button("N: age").clicked() {}
-                        });
-                    });
-                });
-            });
+                },
+            );
             // if res.header_response.secondary_clicked() {
             res.header_response.context_menu(|ui| {
                 egui::menu::bar(ui, |ui| {
@@ -150,23 +157,30 @@ impl DataBase {
                 let input_5 = ui.text_edit_singleline(&mut self.tmp_config.db);
 
                 // if input_5.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {}
-                ui.allocate_ui_with_layout(ui.available_size(), Layout::right_to_left(), |ui| {
-                    if ui.button("测试连接").clicked() {
-                        if let Err(e) = self.conn_manager.send(self.tmp_config.clone()) {
-                            tracing::error!("发送连接请求失败： {}", e);
-                        }
-                        tracing::info!("发送连接请求成功");
-                        // self.config.api_key_setted = true;
-                        // if let Err(e) = self.save_config(self.config.clone()) {
-                        //     let err_msg = format!("配置保存失败：{:?}", e);
-                        //     tracing::error!(err_msg);
-                        //     ui.label(RichText::new(err_msg).color(self.config.theme.colors.error));
-                        //     ui.ctx().memory().request_focus(input.id);
-                        // } else {
-                        //     tracing::info!("配置保存成功");
+                ui.allocate_ui_with_layout(
+                    Vec2::new(ui.available_width(), 0.),
+                    Layout::right_to_left(),
+                    |ui| {
+                        let mut test_btn = ui.button("测试连接");
+                        test_btn = test_btn.on_hover_text("仅测试，不添加到侧边栏");
+                        if test_btn.clicked() {
+                            if self.tmp_config.name.is_empty() {
+                                self.tmp_config.name =
+                                    format!("{}:{}", self.tmp_config.ip, self.tmp_config.port);
+                            }
+                            if let Err(e) = self.conn_manager.send(self.tmp_config.clone()) {
+                                tracing::error!("发送连接请求失败： {}", e);
+                            }
+                            tracing::info!("发送连接请求成功");
+                        };
+
+                        // let mut conn_btn = ui.button("连接并添加至侧边栏");
+                        // conn_btn = conn_btn.on_hover_text("新建一个新的数据库连接");
+                        // if conn_btn.clicked() {
+
                         // }
-                    };
-                });
+                    },
+                );
             });
     }
 }
