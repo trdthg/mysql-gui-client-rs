@@ -2,7 +2,6 @@ use eframe::{
     egui::{self, Context, Layout, RichText, ScrollArea},
     emath::Vec2,
     epaint::Color32,
-    App,
 };
 
 use crate::{server::api::mysql::ConnectionConfig, util::duplex_channel::DuplexConsumer};
@@ -24,7 +23,7 @@ pub struct Connection {
     pub conn: Option<usize>,
 }
 
-impl App for DataBase {
+impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::panel::TopBottomPanel::top("数据库管理 top").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {

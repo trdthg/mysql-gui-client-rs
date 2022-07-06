@@ -4,7 +4,6 @@ mod app;
 mod apps;
 mod client;
 mod config;
-mod router;
 mod server;
 mod theme;
 mod util;

@@ -1,14 +1,34 @@
 use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
 
 use crate::{
-    apps::{article::Article, database::DataBase},
+    apps::{database::DataBase, Article, Setting},
     config::Config,
-    router::{Page, Router},
     server::Repo,
 };
 
+pub struct State {
+    article: Article,
+    database: DataBase,
+    setting: Setting,
+    // #[cfg(feature = "http")]
+    selected: String,
+}
+impl State {
+    pub fn new(mut repo: Repo) -> Self {
+        let database = DataBase::new(repo.conn_manager.take().unwrap());
+        let article = Article::new(repo.article);
+        let setting = Setting::default();
+        Self {
+            article,
+            database,
+            setting,
+            selected: String::new(),
+        }
+    }
+}
+
 pub struct App {
-    pub router: Router,
+    pub state: State,
     pub config: Config,
 }
 
@@ -22,6 +42,11 @@ impl eframe::App for App {
         //     return;
         // }
 
+        if self.state.selected.is_empty() {
+            let selected_anchor = self.apps_iter_mut().next().unwrap().0.to_owned();
+            self.state.selected = selected_anchor;
+        }
+
         tracing::trace!("渲染 Top");
         self.render_top_panel(ctx, frame);
         tracing::trace!("渲染 Side");
@@ -34,15 +59,10 @@ impl eframe::App for App {
 }
 
 impl App {
-    pub fn new(mut repo: Repo) -> Self {
-        let router = Router {
-            page: Default::default(),
-            article: Article::new(repo.article),
-            setting: Default::default(),
-            database: DataBase::new(repo.conn_manager.take().unwrap()),
-        };
+    pub fn new(repo: Repo) -> Self {
+        let state = State::new(repo);
         Self {
-            router,
+            state,
             config: Config::new(),
         }
     }
@@ -54,15 +74,25 @@ impl App {
     fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                tracing::trace!("开始渲染 Top！");
+                tracing::trace!("渲染头部 App 导航");
                 ui.with_layout(Layout::left_to_right(), |ui| {
                     ui.label(RichText::new("App").heading());
-                    egui::menu::bar(ui, |ui| {
-                        ui.selectable_value(&mut self.router.page, Page::Article, "文章");
-                        ui.selectable_value(&mut self.router.page, Page::DataBase, "数据库");
-                        ui.selectable_value(&mut self.router.page, Page::Setting, "设置");
-                    });
+                    let mut selected_anchor = self.state.selected.clone();
+                    for (name, anchor, _app) in self.apps_iter_mut() {
+                        if ui
+                            .selectable_label(selected_anchor == anchor, name)
+                            .clicked()
+                        {
+                            selected_anchor = anchor.to_owned();
+                            if frame.is_web() {
+                                ui.output().open_url(format!("#{}", anchor));
+                            }
+                        }
+                    }
+                    self.state.selected = selected_anchor;
                 });
+
+                // 渲染右侧按钮
                 ui.with_layout(Layout::right_to_left(), |ui| {
                     let close_btn = ui.add(Button::new("✖")); // ✕
                     if close_btn.clicked() {
@@ -70,7 +100,6 @@ impl App {
                     }
                     if ctx.style().visuals.dark_mode {
                         let theme_btn = ui.add(Button::new("🌙"));
-
                         if theme_btn.clicked() {
                             ctx.set_visuals(egui::Visuals::light());
                         }
@@ -80,10 +109,6 @@ impl App {
                             ctx.set_visuals(egui::Visuals::dark());
                         }
                     }
-                    // if theme_btn.clicked() {
-                    //     self.config.theme.toogle_dark_mode();
-                    // }
-                    // time
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         let time = chrono::Local::now();
@@ -97,6 +122,37 @@ impl App {
             });
         });
     }
+
+    fn apps_iter_mut(&mut self) -> impl Iterator<Item = (&str, &str, &mut dyn eframe::App)> {
+        let vec = vec![
+            (
+                "✨ 数据库",
+                "databae",
+                &mut self.state.database as &mut dyn eframe::App,
+            ),
+            (
+                "🖹 文章",
+                "article",
+                &mut self.state.article as &mut dyn eframe::App,
+            ),
+            (
+                "🕑 设置",
+                "setting",
+                &mut self.state.setting as &mut dyn eframe::App,
+            ),
+        ];
+
+        // #[cfg(feature = "http")]
+        // "⬇ HTTP",
+        // "🔺 3D painting",
+        // "colors",
+        // "🎨 Color test",
+        // "custom3d",
+        // &mut self.custom3d as &mut dyn eframe::App,
+
+        vec.into_iter()
+    }
+
     fn render_footer(&mut self, ctx: &Context) {
         // TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         //     //
@@ -106,12 +162,18 @@ impl App {
     fn render_side(&mut self, ctx: &Context) {}
 
     fn render_content(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| match self.router.page {
-            Page::Article => eframe::App::update(&mut self.router.article, ctx, frame),
-            Page::Setting => {
-                self.router.setting.ui(ui, ctx);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut found_anchor = false;
+            let selected_anchor = self.state.selected.clone();
+            for (_name, anchor, app) in self.apps_iter_mut() {
+                if anchor == selected_anchor || ctx.memory().everything_is_visible() {
+                    app.update(ctx, frame);
+                    found_anchor = true;
+                }
             }
-            Page::DataBase => eframe::App::update(&mut self.router.database, ctx, frame),
+            if !found_anchor {
+                self.state.selected = "article".into();
+            }
         });
     }
 
