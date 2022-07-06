@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
         .with_max_level(Level::DEBUG)
         .init();
 
-    let mut server = Server::new();
+    let server = Server::new();
 
     let app = App::new(server);
     let mut options = eframe::NativeOptions::default();

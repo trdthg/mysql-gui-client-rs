@@ -4,7 +4,7 @@ use sqlx::Pool;
 pub mod api;
 pub mod entity;
 use crate::{
-    apps::database::database::Connection,
+    apps::database::Connection,
     server::api::fetch_articles,
     util::duplex_channel::{self, DuplexConsumer},
 };

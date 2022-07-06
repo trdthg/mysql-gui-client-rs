@@ -1,12 +1,4 @@
-use crate::{
-    apps::{
-        article::article::Article,
-        database::database::{Connection, DataBase},
-        pages::setting::Setting,
-    },
-    server::api::mysql::ConnectionConfig,
-    util::duplex_channel::DuplexConsumer,
-};
+use crate::apps::{article::Article, database::DataBase, setting::Setting};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Page {
@@ -20,6 +12,7 @@ impl Default for Page {
         Self::Article
     }
 }
+
 pub struct Router {
     pub page: Page,
     pub article: Article,

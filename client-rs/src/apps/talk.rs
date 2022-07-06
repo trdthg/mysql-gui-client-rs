@@ -26,6 +26,14 @@ impl Default for State {
     }
 }
 
+impl eframe::App for Talk {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::panel::CentralPanel::default().show(ctx, |ui| {
+            self.ui(ui);
+        });
+    }
+}
+
 impl Talk {
     pub fn new(client: Client) -> Self {
         Self {

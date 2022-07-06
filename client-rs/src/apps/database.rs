@@ -6,8 +6,8 @@ use eframe::{
 };
 
 use crate::{server::api::mysql::ConnectionConfig, util::duplex_channel::DuplexConsumer};
-
-use super::table::Table;
+pub mod table;
+use table::Table;
 
 pub struct DataBase {
     state: String,

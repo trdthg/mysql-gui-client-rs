@@ -1,7 +1,7 @@
 use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
 
 use crate::{
-    apps::{article::article::Article, database::database::DataBase},
+    apps::{article::Article, database::DataBase},
     config::Config,
     router::{Page, Router},
     server::Repo,
@@ -107,11 +107,9 @@ impl App {
 
     fn render_content(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| match self.router.page {
-            Page::Article => {
-                eframe::App::update(&mut self.router.article, ctx, frame)
-            }
+            Page::Article => eframe::App::update(&mut self.router.article, ctx, frame),
             Page::Setting => {
-                self.router.setting.ui(ui, ctx, &mut self.config);
+                self.router.setting.ui(ui, ctx);
             }
             Page::DataBase => eframe::App::update(&mut self.router.database, ctx, frame),
         });
