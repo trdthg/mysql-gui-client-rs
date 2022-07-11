@@ -1,4 +1,4 @@
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ConnectionConfig {
     pub name: String,
     pub username: String,

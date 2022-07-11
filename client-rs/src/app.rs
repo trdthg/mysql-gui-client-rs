@@ -1,27 +1,30 @@
 use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
 
 use crate::{
-    apps::{database::DataBase, Article, Setting},
+    apps::{database::DataBase, Article, Setting, Test},
     config::Config,
-    server::Repo,
+    service::Repo,
 };
 
 pub struct State {
     article: Article,
     database: DataBase,
     setting: Setting,
+    test: Test,
     // #[cfg(feature = "http")]
     selected: String,
 }
 impl State {
-    pub fn new(mut repo: Repo) -> Self {
-        let database = DataBase::new(repo.conn_manager.take().unwrap());
+    pub fn new(repo: Repo) -> Self {
+        let database = DataBase::new(repo.conn_manager);
         let article = Article::new(repo.article);
         let setting = Setting::default();
+        let test = Default::default();
         Self {
             article,
             database,
             setting,
+            test,
             selected: String::new(),
         }
     }
@@ -139,6 +142,11 @@ impl App {
                 "🕑 设置",
                 "setting",
                 &mut self.state.setting as &mut dyn eframe::App,
+            ),
+            (
+                "T 测试",
+                "test",
+                &mut self.state.test as &mut dyn eframe::App,
             ),
         ];
 

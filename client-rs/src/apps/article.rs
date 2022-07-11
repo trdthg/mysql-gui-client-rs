@@ -3,14 +3,11 @@ use eframe::{
     emath::Vec2,
 };
 
-use crate::{
-    server::{entity::NewsArticle, Repo},
-    util::duplex_channel::DuplexConsumer,
-};
+use crate::service::{article::ArticleClient, entity::NewsArticle};
 
 pub struct Article {
     articles: Vec<NewsArticle>,
-    fetcher: DuplexConsumer<(), Vec<NewsArticle>>,
+    fetcher: ArticleClient,
 }
 
 impl eframe::App for Article {
@@ -35,12 +32,12 @@ impl eframe::App for Article {
                 if ui.button("↺").clicked() {
                     tracing::debug!("清空");
                     self.articles.clear();
-                    if let Err(e) = self.fetcher.send(()) {
+                    if let Err(e) = self.fetcher.inner.send(()) {
                         tracing::debug!("连接已关闭：{:?}", e);
                     }
                 }
             });
-            if let Ok(articles) = self.fetcher.try_recv() {
+            if let Ok(articles) = self.fetcher.inner.try_recv() {
                 self.articles = articles;
             }
         });
@@ -52,7 +49,7 @@ impl eframe::App for Article {
     }
 }
 impl Article {
-    pub fn new(article_fetcher: DuplexConsumer<(), Vec<NewsArticle>>) -> Self {
+    pub fn new(article_fetcher: ArticleClient) -> Self {
         Self {
             articles: vec![],
             fetcher: article_fetcher,

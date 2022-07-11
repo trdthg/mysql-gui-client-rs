@@ -4,7 +4,7 @@ use eframe::{
     epaint::Color32,
 };
 
-use crate::{server::api::mysql::ConnectionConfig, util::duplex_channel::DuplexConsumer};
+use crate::service::{api::mysql::ConnectionConfig, database::DatabaseClient};
 pub mod table;
 use table::Table;
 
@@ -14,10 +14,10 @@ pub struct DataBase {
     table: Table,
     tmp_config: ConnectionConfig,
     tmp_config_open: bool,
-    conn_manager: DuplexConsumer<ConnectionConfig, Connection>,
+    conn_manager: DatabaseClient,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Connection {
     pub config: ConnectionConfig,
     pub conn: Option<usize>,
@@ -40,9 +40,13 @@ impl eframe::App for DataBase {
                 };
             });
             self.make_new_conn(ctx);
-            if let Ok(v) = self.conn_manager.try_recv() {
-                tracing::info!("连接成功！");
-                self.conns.push(v);
+            if let Ok(v) = self.conn_manager.inner.try_recv() {
+                if let Some(_) = v.conn {
+                    tracing::info!("连接成功！");
+                    println!("{:?}", v);
+                    self.conns.push(v);
+                    self.tmp_config_open = false;
+                }
             }
             ScrollArea::vertical()
                 .auto_shrink([false; 2])
@@ -63,7 +67,7 @@ impl eframe::App for DataBase {
 }
 
 impl DataBase {
-    pub fn new(conn_manager: DuplexConsumer<ConnectionConfig, Connection>) -> Self {
+    pub fn new(conn_manager: DatabaseClient) -> Self {
         Self {
             conns: vec![],
             state: "aaa".into(),
@@ -160,24 +164,24 @@ impl DataBase {
                     Vec2::new(ui.available_width(), 0.),
                     Layout::right_to_left(),
                     |ui| {
+                        let mut conn_btn = ui.button("连接并保存");
+                        conn_btn = conn_btn.on_hover_text("新建一个新的数据库连接，并添加至侧边栏");
                         let mut test_btn = ui.button("测试连接");
                         test_btn = test_btn.on_hover_text("仅测试，不添加到侧边栏");
-                        if test_btn.clicked() {
+                        if conn_btn.clicked() || test_btn.clicked() {
                             if self.tmp_config.name.is_empty() {
                                 self.tmp_config.name =
                                     format!("{}:{}", self.tmp_config.ip, self.tmp_config.port);
                             }
-                            if let Err(e) = self.conn_manager.send(self.tmp_config.clone()) {
+                            if let Err(e) = self
+                                .conn_manager
+                                .inner
+                                .send((self.tmp_config.clone(), true))
+                            {
                                 tracing::error!("发送连接请求失败： {}", e);
                             }
                             tracing::info!("发送连接请求成功");
-                        };
-
-                        // let mut conn_btn = ui.button("连接并添加至侧边栏");
-                        // conn_btn = conn_btn.on_hover_text("新建一个新的数据库连接");
-                        // if conn_btn.clicked() {
-
-                        // }
+                        }
                     },
                 );
             });

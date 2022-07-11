@@ -1,4 +1,4 @@
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct NewsArticle {
     pub id: String,
     pub title: String,

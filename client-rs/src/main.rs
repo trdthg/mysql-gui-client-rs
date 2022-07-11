@@ -4,13 +4,13 @@ mod app;
 mod apps;
 mod client;
 mod config;
-mod server;
+mod service;
 mod theme;
 mod util;
 
 use app::App;
 use eframe::emath::Vec2;
-use server::Server;
+use service::Backend;
 use tracing::Level;
 
 fn main() -> anyhow::Result<()> {
@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
         .with_max_level(Level::DEBUG)
         .init();
 
-    let server = Server::new();
+    let server = Backend::new();
 
     let app = App::new(server);
     let mut options = eframe::NativeOptions::default();

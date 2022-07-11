@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin};
+use std::{fmt::Debug, future::Future, pin::Pin};
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
@@ -23,16 +23,28 @@ pub struct DuplexProducer<S, D> {
 }
 
 unsafe impl<D, S> Send for DuplexConsumer<S, D> {}
+unsafe impl<D, S> Sync for DuplexConsumer<S, D> {}
 unsafe impl<D, S> Send for DuplexProducer<S, D> {}
+unsafe impl<D, S> Sync for DuplexProducer<S, D> {}
 
-impl<S, D> DuplexProducer<S, D> {
-    pub fn take(self) -> Self {
-        self
+impl<S, D> DuplexProducer<S, D>
+where
+    D: Debug,
+    S: Debug,
+{
+    pub fn send(&mut self, data: D) -> Result<(), tokio::sync::mpsc::error::SendError<D>> {
+        self.data_chan.send(data)
     }
+
+    pub async fn try_recv(&mut self) -> Option<S> {
+        self.signal_chan.recv().await
+    }
+
     pub async fn wait_produce<F, Fut>(&mut self, f: F)
     where
-        F: Fn() -> Pin<Box<Fut>>,
-        Fut: Future<Output = D>,
+        // F: Fn() -> Pin<Box<Fut>>,
+        F: Fn() -> Fut,
+        Fut: Future<Output = D> + Send + 'static,
     {
         loop {
             match self.signal_chan.recv().await {
@@ -42,7 +54,7 @@ impl<S, D> DuplexProducer<S, D> {
                 Some(_) => {
                     let res = f().await;
                     if let Err(e) = self.data_chan.send(res) {
-                        tracing::error!("发送连接结果失败，GUI 可能停止工作");
+                        tracing::error!("发送连接结果失败，GUI 可能停止工作：{}", e);
                         continue;
                     }
                     tracing::debug!("发送请求结果成功");
@@ -53,8 +65,8 @@ impl<S, D> DuplexProducer<S, D> {
 
     pub async fn wait_handle_produce<F, Fut>(&mut self, f: F)
     where
-        F: Fn(S) -> Pin<Box<Fut>>,
-        Fut: Future<Output = D>,
+        F: Fn(S) -> Fut,
+        Fut: Future<Output = D> + Send + 'static,
     {
         loop {
             match self.signal_chan.recv().await {
@@ -64,7 +76,7 @@ impl<S, D> DuplexProducer<S, D> {
                 Some(signal) => {
                     let res = f(signal).await;
                     if let Err(e) = self.data_chan.send(res) {
-                        tracing::error!("发送执行结果失败，GUI 可能停止工作");
+                        tracing::error!("发送执行结果失败，GUI 可能停止工作： {}", e);
                         continue;
                     }
                     tracing::debug!("发送请求结果成功");

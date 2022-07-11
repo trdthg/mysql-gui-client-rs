@@ -1,4 +1,4 @@
-use crate::server::entity::NewsArticle;
+use crate::service::entity::NewsArticle;
 use serde_json::Value;
 
 #[derive(serde::Serialize, serde::Deserialize)]
