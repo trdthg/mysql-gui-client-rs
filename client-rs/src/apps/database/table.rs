@@ -2,8 +2,6 @@ use eframe::egui::{self, Context, ScrollArea};
 
 pub struct Table {
     state: State,
-    current_scroll: f32,
-    max_scroll: f32,
 }
 #[derive(PartialEq)]
 enum State {
@@ -15,11 +13,7 @@ enum State {
 }
 impl Default for Table {
     fn default() -> Self {
-        Self {
-            state: State::None,
-            current_scroll: 0.,
-            max_scroll: 0.,
-        }
+        Self { state: State::None }
     }
 }
 

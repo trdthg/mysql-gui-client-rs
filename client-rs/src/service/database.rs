@@ -1,36 +1,60 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use tokio::sync::Mutex;
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    Mutex,
+};
 pub mod entity;
 use crate::apps::Connection;
-use crate::util::duplex_channel;
-use crate::util::duplex_channel::{DuplexConsumer, DuplexProducer};
 use entity::ConnectionConfig;
 
-use super::Server;
+use super::{make_chan, Channels, Client, Server};
 
 type CONNS = Arc<Mutex<HashMap<String, sqlx::Pool<sqlx::MySql>>>>;
+
+type S = (ConnectionConfig, bool);
+type D = Connection;
+
 pub struct DatabaseServer {
-    pub inner: DuplexProducer<(ConnectionConfig, bool), Connection>,
+    s: UnboundedSender<D>,
+    r: UnboundedReceiver<S>,
     pub conns: CONNS,
 }
 
 pub struct DatabaseClient {
-    pub inner: DuplexConsumer<(ConnectionConfig, bool), Connection>,
+    s: UnboundedSender<S>,
+    r: UnboundedReceiver<D>,
 }
 
-pub fn make_service<'a>() -> (DatabaseClient, Box<dyn Server>) {
-    let (sql_sender, sql_executor) =
-        duplex_channel::channel::<(ConnectionConfig, bool), Connection>();
-    let client = DatabaseClient { inner: sql_sender };
+impl Client for DatabaseClient {
+    type S = S;
+
+    type D = D;
+
+    fn send(
+        &self,
+        singal: Self::S,
+    ) -> Result<(), tokio::sync::mpsc::error::SendError<(ConnectionConfig, bool)>> {
+        self.s.send(singal)
+    }
+
+    fn try_recv(&mut self) -> Result<Self::D, tokio::sync::mpsc::error::TryRecvError> {
+        self.r.try_recv()
+    }
+}
+
+pub fn make_service() -> (DatabaseClient, Box<dyn Server>) {
+    let Channels { c_s, c_r, s_s, s_r } = make_chan::<S, D>();
+    let client = DatabaseClient { s: c_s, r: c_r };
 
     let conns = HashMap::new();
     let conns = Arc::new(Mutex::new(conns));
     let conns = Arc::clone(&conns);
 
     let server = DatabaseServer {
-        inner: sql_executor,
+        s: s_s,
+        r: s_r,
         conns,
     };
     (client, Box::new(server))
@@ -41,7 +65,7 @@ impl Server for DatabaseServer {
     async fn block_on(&mut self) {
         tracing::info!("SQL 执行器启动正常");
         loop {
-            match self.inner.try_recv().await {
+            match self.r.recv().await {
                 None => {
                     tracing::error!("发送方已关闭");
                 }
@@ -65,7 +89,7 @@ impl Server for DatabaseServer {
                             tracing::info!("目标数据库连接成功");
                         }
                     }
-                    if let Err(e) = self.inner.send(res) {
+                    if let Err(e) = self.s.send(res) {
                         tracing::error!("发送连接结果失败，GUI 可能停止工作：{}", e);
                         continue;
                     }

@@ -3,7 +3,7 @@ use std::{fmt::Debug, future::Future};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 pub struct DuplexConsumer<S, D> {
-    signal_chan: UnboundedSender<S>,
+    pub signal_chan: UnboundedSender<S>,
     data_chan: UnboundedReceiver<D>,
 }
 
@@ -19,7 +19,7 @@ impl<S, D> DuplexConsumer<S, D> {
 
 pub struct DuplexProducer<S, D> {
     signal_chan: UnboundedReceiver<S>,
-    data_chan: UnboundedSender<D>,
+    pub data_chan: UnboundedSender<D>,
 }
 
 unsafe impl<D, S> Send for DuplexConsumer<S, D> {}

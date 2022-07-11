@@ -4,6 +4,7 @@ use eframe::{
     epaint::Color32,
 };
 
+use crate::service::Client;
 pub mod table;
 use table::Table;
 
@@ -41,7 +42,7 @@ impl eframe::App for DataBase {
                 };
             });
             self.make_new_conn(ctx);
-            if let Ok(v) = self.conn_manager.inner.try_recv() {
+            if let Ok(v) = self.conn_manager.try_recv() {
                 if let Some(_) = v.conn {
                     tracing::info!("连接成功！");
                     println!("{:?}", v);
@@ -174,10 +175,7 @@ impl DataBase {
                                 self.tmp_config.name =
                                     format!("{}:{}", self.tmp_config.ip, self.tmp_config.port);
                             }
-                            if let Err(e) = self
-                                .conn_manager
-                                .inner
-                                .send((self.tmp_config.clone(), true))
+                            if let Err(e) = self.conn_manager.send((self.tmp_config.clone(), true))
                             {
                                 tracing::error!("发送连接请求失败： {}", e);
                             }

@@ -4,7 +4,7 @@ use eframe::{
 };
 
 use crate::service::article::{entity::NewsArticle, ArticleClient};
-
+use crate::service::Client;
 pub struct Article {
     articles: Vec<NewsArticle>,
     fetcher: ArticleClient,
@@ -32,12 +32,12 @@ impl eframe::App for Article {
                 if ui.button("↺").clicked() {
                     tracing::debug!("清空");
                     self.articles.clear();
-                    if let Err(e) = self.fetcher.inner.send(()) {
+                    if let Err(e) = self.fetcher.send(()) {
                         tracing::debug!("连接已关闭：{:?}", e);
                     }
                 }
             });
-            if let Ok(articles) = self.fetcher.inner.try_recv() {
+            if let Ok(articles) = self.fetcher.try_recv() {
                 self.articles = articles;
             }
         });

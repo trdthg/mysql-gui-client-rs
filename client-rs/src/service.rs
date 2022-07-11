@@ -6,11 +6,41 @@ use article::ArticleClient;
 use async_trait::async_trait;
 use database::DatabaseClient;
 use std::thread;
+use tokio::sync::mpsc::{
+    error::{SendError, TryRecvError},
+    unbounded_channel, UnboundedReceiver, UnboundedSender,
+};
 
 #[async_trait]
 pub trait Server: Send + Sync + 'static {
     async fn block_on(&mut self);
 }
+
+pub trait Client: Send + Sync + 'static {
+    type S;
+    type D;
+
+    fn send(&self, singal: Self::S) -> Result<(), SendError<Self::S>>;
+    fn try_recv(&mut self) -> Result<Self::D, TryRecvError>;
+}
+
+pub struct Channels<S, D> {
+    c_s: UnboundedSender<S>,
+    c_r: UnboundedReceiver<D>,
+    s_s: UnboundedSender<D>,
+    s_r: UnboundedReceiver<S>,
+}
+pub fn make_chan<S, D>() -> Channels<S, D> {
+    let (client_sender, server_receiver) = unbounded_channel::<S>();
+    let (server_sender, client_receiver) = unbounded_channel::<D>();
+    Channels {
+        c_s: client_sender,
+        c_r: client_receiver,
+        s_s: server_sender,
+        s_r: server_receiver,
+    }
+}
+
 pub struct Repo {
     pub article: ArticleClient,
     pub conn_manager: DatabaseClient,
