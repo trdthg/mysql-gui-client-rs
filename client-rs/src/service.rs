@@ -1,101 +1,53 @@
-use sqlx::Pool;
-use std::{collections::HashMap, sync::Arc, thread};
-use tokio::sync::Mutex;
-
-pub mod api;
 pub mod article;
 pub mod database;
-pub mod entity;
+pub mod talk;
 
-use crate::{apps::database::Connection, service::api::fetch_articles};
+use article::ArticleClient;
+use async_trait::async_trait;
+use database::DatabaseClient;
+use std::thread;
 
-use crate::service::database::{make_db_service, DatabaseClient};
-
-use self::article::{make_article_service, ArticleClient};
+#[async_trait]
+pub trait Server: Send + Sync + 'static {
+    async fn block_on(&mut self);
+}
 pub struct Repo {
     pub article: ArticleClient,
     pub conn_manager: DatabaseClient,
 }
 
-pub struct Backend;
+pub struct Backend {
+    servers: Vec<Box<dyn Server>>,
+}
 
 impl Backend {
-    pub fn new() -> Repo {
-        let (article_consumer, mut article_producer) = make_article_service();
-
-        let (sql_sender, mut sql_executor) = make_db_service();
+    pub fn new() -> (Self, Repo) {
+        let (article_consumer, article_producer) = article::make_service();
+        let (sql_sender, sql_executor) = database::make_service();
         let repo = Repo {
             article: article_consumer,
             conn_manager: sql_sender,
         };
+        let servers = vec![article_producer, sql_executor];
 
-        thread::spawn(move || {
+        (Self { servers }, repo)
+    }
+
+    pub fn run(self) {
+        thread::spawn(|| {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_io()
                 .enable_time()
                 .build()
                 .unwrap();
             runtime.block_on(async move {
-                let t1 = tokio::task::spawn(async move {
-                    tracing::info!("机核网文章资讯查询器启动正常");
-                    article_producer
-                        .inner
-                        .wait_produce(|| Box::pin(async { fetch_articles().await }))
-                        .await;
-                });
-
-                let t3 = tokio::task::spawn(async move {
-                    tracing::info!("SQL 执行器启动正常");
-                    let conns: HashMap<String, Pool<sqlx::MySql>> = HashMap::new();
-                    let conns = Arc::new(Mutex::new(conns));
-                    let conns = Arc::clone(&conns);
-                    loop {
-                        match sql_executor.inner.try_recv().await {
-                            None => {
-                                tracing::error!("发送方已关闭");
-                            }
-                            Some((sql, save)) => {
-                                let url = format!(
-                                    "mysql://{}:{}@{}:{}/{}",
-                                    &sql.username, &sql.password, &sql.ip, &sql.port, &sql.db
-                                );
-                                let key = sql.name.to_owned();
-                                let mut res = Connection {
-                                    config: sql,
-                                    conn: None,
-                                };
-                                let pool = sqlx::MySqlPool::connect(&url).await;
-                                if let Err(e) = pool {
-                                    tracing::error!("目标数据库连接失败： {:?}", e);
-                                    if let Err(e) = sql_executor.inner.send(res) {
-                                        tracing::error!(
-                                            "发送连接结果失败，GUI 可能停止工作：{}",
-                                            e
-                                        );
-                                        continue;
-                                    }
-                                    tracing::debug!("回复成功");
-                                    continue;
-                                }
-                                let pool = pool.unwrap();
-                                if save == true {
-                                    conns.lock().await.insert(key, pool);
-                                    res.conn = Some(1);
-                                }
-                                tracing::info!("目标数据库连接成功");
-                                if let Err(e) = sql_executor.inner.send(res) {
-                                    tracing::error!("发送连接结果失败，GUI 可能停止工作：{}", e);
-                                    continue;
-                                }
-                                tracing::debug!("回复成功");
-                            }
-                        }
-                    }
-                });
-
                 let mut handlers = vec![];
-                handlers.push(t1);
-                handlers.push(t3);
+                for mut producer in self.servers {
+                    let t = tokio::task::spawn(async move {
+                        producer.block_on().await;
+                    });
+                    handlers.push(t);
+                }
                 for handler in handlers {
                     if let Err(e) = handler.await {
                         tracing::error!("tokio 任务执行失败：{}", e);
@@ -103,8 +55,5 @@ impl Backend {
                 }
             });
         });
-        // producer;
-
-        repo
     }
 }

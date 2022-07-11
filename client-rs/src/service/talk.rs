@@ -1,9 +1,9 @@
+pub mod message;
 use anyhow::Result;
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 
-use self::message::Message;
-pub mod message;
+use message::Message;
 pub struct Client {
     server_addr: SocketAddr,
     conn: TcpStream,

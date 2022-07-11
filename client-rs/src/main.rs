@@ -2,7 +2,6 @@
 
 mod app;
 mod apps;
-mod client;
 mod config;
 mod service;
 mod theme;
@@ -18,9 +17,9 @@ fn main() -> anyhow::Result<()> {
         .with_max_level(Level::DEBUG)
         .init();
 
-    let server = Backend::new();
-
-    let app = App::new(server);
+    let (server, repo) = Backend::new();
+    server.run();
+    let app = App::new(repo);
     let mut options = eframe::NativeOptions::default();
     options.resizable = true;
     options.vsync = true;

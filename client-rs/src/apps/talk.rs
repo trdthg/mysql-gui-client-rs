@@ -4,7 +4,7 @@ use eframe::{
     epaint::Color32,
 };
 
-use crate::client::{message::Message, Client};
+use crate::service::talk::{message::Message, Client};
 
 pub struct Talk {
     count: usize,

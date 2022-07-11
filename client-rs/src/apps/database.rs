@@ -4,9 +4,10 @@ use eframe::{
     epaint::Color32,
 };
 
-use crate::service::{api::mysql::ConnectionConfig, database::DatabaseClient};
 pub mod table;
 use table::Table;
+
+use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
 
 pub struct DataBase {
     state: String,

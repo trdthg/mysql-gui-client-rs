@@ -3,7 +3,7 @@ use eframe::{
     emath::Vec2,
 };
 
-use crate::service::{article::ArticleClient, entity::NewsArticle};
+use crate::service::article::{entity::NewsArticle, ArticleClient};
 
 pub struct Article {
     articles: Vec<NewsArticle>,
