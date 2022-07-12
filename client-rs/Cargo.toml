@@ -8,6 +8,9 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[env]
+DATABASE_URL = ""
+
 [dependencies]
 eframe = { version = "0.18", features = ["persistence"] }
 egui_extras = { version = "0.18", features = ["serde"] }
