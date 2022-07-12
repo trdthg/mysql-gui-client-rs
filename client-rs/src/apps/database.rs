@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use eframe::{
     egui::{self, Context, Layout, RichText, ScrollArea},
     emath::Vec2,
@@ -24,7 +26,7 @@ pub struct DataBase {
 
 #[derive(Clone, Debug, Default)]
 struct Conns {
-    pub inner: Vec<Conn>,
+    pub inner: BTreeMap<String, Conn>,
 }
 
 #[derive(Clone, Debug)]
@@ -88,7 +90,7 @@ impl DataBase {
     }
 
     fn render_conn(&self, ui: &mut egui::Ui) {
-        for conn in self.conns.inner.iter() {
+        for (key, conn) in self.conns.inner.iter() {
             if conn.conn.is_none() {
                 ui.label(format!("{}", conn.config.get_name()));
                 ui.colored_label(Color32::RED, format!("{}", conn.config.get_name()));
@@ -235,19 +237,27 @@ impl DataBase {
                     if save == false {
                         return;
                     }
-                    self.conns.inner.push(Conn {
-                        config,
-                        conn: result,
-                        databases: vec![],
-                    });
+                    self.conns.inner.insert(
+                        config.get_name(),
+                        Conn {
+                            config,
+                            conn: result,
+                            databases: vec![],
+                        },
+                    );
                     self.tmp_config_open = false;
                 }
-                message::Response::Databases { data } => {
+                message::Response::Databases { key, data } => {
                     tracing::info!("{:?}", data);
                     tracing::info!("查询数据库成功");
-                    // self.conns.inner.get(1).unwrap().databases = data.iter().map(|x| {
-
-                    // })
+                    use sqlx::Row;
+                    self.conns.inner.get_mut(&key).unwrap().databases = data
+                        .iter()
+                        .map(|x| {
+                            let name: String = x.get(0);
+                            DB { name }
+                        })
+                        .collect();
                 }
             }
         }

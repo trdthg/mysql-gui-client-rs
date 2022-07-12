@@ -24,6 +24,7 @@ pub enum Response {
         result: Option<usize>,
     },
     Databases {
+        key: String,
         data: Vec<sqlx::mysql::MySqlRow>,
     },
 }

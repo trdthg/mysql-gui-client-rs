@@ -147,7 +147,7 @@ async fn handle_select(
                 .fetch_all(&mut conn)
                 .await
                 .unwrap();
-            if let Err(e) = s.send(message::Response::Databases { data: rows }) {
+            if let Err(e) = s.send(message::Response::Databases { key, data: rows }) {
                 tracing::error!("返回数据失败");
             }
         }
