@@ -8,13 +8,16 @@ pub enum Message {
     Select {
         key: String,
         db: Option<String>,
+        table: Option<String>,
         r#type: SelectType,
         sql: String,
     },
 }
 
 pub enum SelectType {
-    Database,
+    Databases,
+    Tables,
+    Table,
 }
 
 pub enum Response {
@@ -25,6 +28,17 @@ pub enum Response {
     },
     Databases {
         key: String,
+        data: Vec<sqlx::mysql::MySqlRow>,
+    },
+    Tables {
+        key: String,
+        db: String,
+        data: Vec<sqlx::mysql::MySqlRow>,
+    },
+    DataRows {
+        key: String,
+        db: String,
+        table: String,
         data: Vec<sqlx::mysql::MySqlRow>,
     },
 }

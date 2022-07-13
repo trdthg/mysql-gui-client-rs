@@ -69,29 +69,27 @@ impl Server for DatabaseServer {
     async fn block_on(&mut self) {
         tracing::info!("SQL 执行器启动正常");
         loop {
-            match self.r.recv().await {
-                None => {
-                    tracing::error!("发送方已关闭");
-                }
-                Some(msg) => {
-                    let s = self.s.clone();
-                    let conns = self.conns.clone();
-                    match msg {
-                        Message::Connect { config, save } => {
-                            tokio::task::spawn(async move {
-                                handle_connect(conns, s, config, save).await;
-                            });
-                        }
-                        Message::Select {
-                            sql,
-                            key,
-                            db,
-                            r#type,
-                        } => {
-                            handle_select(conns, s, key, db, r#type, sql).await;
-                        }
-                    };
-                }
+            if let Some(msg) = self.r.recv().await {
+                let s = self.s.clone();
+                let conns = self.conns.clone();
+                match msg {
+                    Message::Connect { config, save } => {
+                        tokio::task::spawn(async move {
+                            handle_connect(conns, s, config, save).await;
+                        });
+                    }
+                    Message::Select {
+                        sql,
+                        key,
+                        db,
+                        table,
+                        r#type,
+                    } => {
+                        handle_select(conns, s, key, db, table, r#type, sql).await;
+                    }
+                };
+            } else {
+                tracing::error!("发送方已关闭");
             }
         }
     }
@@ -130,25 +128,47 @@ async fn handle_select(
     s: UnboundedSender<D>,
     key: String,
     db: Option<String>,
+    table: Option<String>,
     r#type: SelectType,
     sql: String,
 ) {
+    let mut conn = conns
+        .read()
+        .await
+        .get(&key)
+        .unwrap()
+        .acquire()
+        .await
+        .unwrap();
     match r#type {
-        SelectType::Database => {
-            let mut conn = conns
-                .read()
-                .await
-                .get(&key)
-                .unwrap()
-                .acquire()
-                .await
-                .unwrap();
-            let rows: Vec<sqlx::mysql::MySqlRow> = sqlx::query(r#"SHOW DATABASES"#)
-                .fetch_all(&mut conn)
-                .await
-                .unwrap();
+        SelectType::Databases => {
+            let rows: Vec<sqlx::mysql::MySqlRow> =
+                sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
             if let Err(e) = s.send(message::Response::Databases { key, data: rows }) {
-                tracing::error!("返回数据失败");
+                tracing::error!("返回数据失败：{}", e);
+            }
+        }
+        SelectType::Tables => {
+            let rows: Vec<sqlx::mysql::MySqlRow> =
+                sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
+            if let Err(e) = s.send(message::Response::Tables {
+                key,
+                db: db.unwrap(),
+                data: rows,
+            }) {
+                tracing::error!("返回数据失败：{}", e);
+            }
+        }
+        SelectType::Table => {
+            let rows: Vec<sqlx::mysql::MySqlRow> =
+                sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
+            if let Err(e) = s.send(message::Response::DataRows {
+                key,
+                table: table.unwrap(),
+                db: db.unwrap(),
+                data: rows,
+            }) {
+                tracing::error!("返回数据失败：{}", e);
             }
         }
     }

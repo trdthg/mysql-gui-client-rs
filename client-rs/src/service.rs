@@ -30,6 +30,7 @@ pub struct Channels<S, D> {
     s_s: UnboundedSender<D>,
     s_r: UnboundedReceiver<S>,
 }
+
 pub fn make_chan<S, D>() -> Channels<S, D> {
     let (client_sender, server_receiver) = unbounded_channel::<S>();
     let (server_sender, client_receiver) = unbounded_channel::<D>();

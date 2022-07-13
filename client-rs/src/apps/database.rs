@@ -1,16 +1,20 @@
+mod component;
+pub mod table;
 use std::collections::BTreeMap;
 
 use eframe::{
-    egui::{self, Context, Layout, RichText, ScrollArea},
-    emath::Vec2,
+    egui::{self, RichText, ScrollArea},
     epaint::Color32,
 };
 
 use crate::service::{
-    database::{self, message, sqls},
+    database::{
+        message,
+        sqls::{self, TableMeta},
+    },
     Client,
 };
-pub mod table;
+
 use table::Table;
 
 use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
@@ -19,26 +23,26 @@ pub struct DataBase {
     state: String,
     conns: Conns,
     table: Table,
-    tmp_config: ConnectionConfig,
-    tmp_config_open: bool,
+    config_new_conn: component::ConfigNewConnWindow,
     conn_manager: DatabaseClient,
 }
 
 #[derive(Clone, Debug, Default)]
-struct Conns {
+pub struct Conns {
     pub inner: BTreeMap<String, Conn>,
 }
 
 #[derive(Clone, Debug)]
-struct Conn {
+pub struct Conn {
     pub config: ConnectionConfig,
     pub conn: Option<usize>,
-    pub databases: Vec<DB>,
+    pub databases: Option<BTreeMap<String, DB>>,
 }
 
 #[derive(Clone, Debug)]
-struct DB {
+pub struct DB {
     name: String,
+    tables: Option<BTreeMap<String, Vec<TableMeta>>>,
 }
 
 impl eframe::App for DataBase {
@@ -54,10 +58,10 @@ impl eframe::App for DataBase {
             ui.horizontal(|ui| {
                 ui.label("DATABASE");
                 if ui.button("+").clicked() {
-                    self.tmp_config_open = true;
+                    self.config_new_conn.open();
                 };
             });
-            self.make_new_conn(ctx);
+            self.config_new_conn.run(&self.conn_manager, ctx);
             self.handle_sql();
             ScrollArea::vertical()
                 .auto_shrink([false; 2])
@@ -78,14 +82,44 @@ impl eframe::App for DataBase {
 }
 
 impl DataBase {
+    pub fn get_conn_mut(&mut self, key: &str) -> Option<&mut Conn> {
+        self.conns.inner.get_mut(key)
+    }
+
+    pub fn get_db_mut(&mut self, key: &str, db: &str) -> Option<&mut DB> {
+        self.conns
+            .inner
+            .get_mut(key)
+            .and_then(|conn| conn.databases.as_mut())
+            .and_then(|database| database.get_mut(db))
+    }
+
+    pub fn get_db(&self, key: &str, db: &str) -> Option<&DB> {
+        self.conns
+            .inner
+            .get(key)
+            .and_then(|conn| conn.databases.as_ref())
+            .and_then(|database| database.get(db))
+    }
+
+    pub fn get_tables(&self, key: &str, db: &str) -> Option<&BTreeMap<String, Vec<TableMeta>>> {
+        self.get_db(key, db).and_then(|db| db.tables.as_ref())
+    }
+
+    pub fn get_fields(&self, key: &str, db: &str, table: &str) -> Option<&Vec<TableMeta>> {
+        self.get_tables(key, db)
+            .and_then(|tables| tables.get(table))
+    }
+}
+
+impl DataBase {
     pub fn new(conn_manager: DatabaseClient) -> Self {
         Self {
             conns: Conns::default(),
             state: "aaa".into(),
             table: Default::default(),
-            tmp_config: ConnectionConfig::default(),
-            tmp_config_open: false,
             conn_manager,
+            config_new_conn: component::ConfigNewConnWindow::default(),
         }
     }
 
@@ -96,69 +130,84 @@ impl DataBase {
                 ui.colored_label(Color32::RED, format!("{}", conn.config.get_name()));
                 continue;
             }
-            // 各数据库连接
-            let conn_name = ui.collapsing(
+
+            // 数据库连接
+            let conn_collapsing = ui.collapsing(
                 RichText::new(&conn.config.get_name()).color(Color32::GREEN),
                 |ui| {
-                    // 各数据库
-                    for db in conn.databases.iter() {
-                        let db_name = RichText::new(&db.name);
-                        ui.collapsing(db_name, |ui| {
-                            // 各数据表
-                            let table_name = RichText::new("tables");
-                            ui.collapsing(table_name, |ui| {
-                                // 各字段
-                                ui.collapsing(RichText::new("student"), |ui| {
-                                    if ui.button("P: id").clicked() {}
-                                    if ui.button("N: name").clicked() {}
-                                    if ui.button("N: age").clicked() {}
-                                });
-                                ui.collapsing(RichText::new("class"), |ui| {
-                                    if ui.button("P: id").clicked() {}
-                                    if ui.button("N: name").clicked() {}
-                                    if ui.button("N: teacher").clicked() {}
-                                });
-                            });
-                            ui.collapsing(RichText::new("views"), |ui| {
-                                ui.collapsing(RichText::new("Student"), |ui| {
-                                    ui.label("P: id");
-                                    if ui.button("P: id").clicked() {}
-                                    if ui.button("N: name").clicked() {}
-                                    if ui.button("N: age").clicked() {}
-                                });
-                                ui.collapsing(RichText::new("Class"), |ui| {});
-                            });
-                            ui.collapsing(RichText::new("procedures"), |ui| {
-                                ui.collapsing(RichText::new("Student"), |ui| {
-                                    if ui.label("P: id").clicked() {}
-                                    if ui.button("N: name").clicked() {}
-                                    if ui.button("N: age").clicked() {}
-                                });
-                            });
-                            ui.collapsing(RichText::new("functions"), |ui| {
-                                ui.collapsing(RichText::new("Student"), |ui| {
-                                    if ui.button("P: id").clicked() {}
-                                    if ui.button("N: name").clicked() {}
-                                    if ui.button("N: age").clicked() {}
+                    if let Some(databases) = &conn.databases {
+                        for (db_name, db) in databases.iter() {
+                            // 数据库
+                            let db_collapsing = ui.collapsing(RichText::new(db_name), |ui| {
+                                if let Some(tables) = &db.tables {
+                                    for (table_name, table) in tables.iter() {
+                                        // 数据表
+                                        let table_collapsing =
+                                            ui.collapsing(RichText::new(table_name), |ui| {
+                                                // 各字段
+                                                for field in table.iter() {
+                                                    if ui.button(&field.column_name).clicked() {}
+                                                }
+                                            });
+                                        if table_collapsing.header_response.double_clicked() {
+                                            if let Err(e) =
+                                                self.conn_manager.send(message::Message::Select {
+                                                    key: conn.config.get_name(),
+                                                    db: Some(db_name.to_string()),
+                                                    table: Some(table_name.to_string()),
+                                                    r#type: message::SelectType::Table,
+                                                    sql: sqls::get_100_row(db_name, table_name),
+                                                })
+                                            {
+                                                tracing::error!("查询数据库失败：{}", e);
+                                            }
+                                        }
+                                    }
+                                }
+                                ui.collapsing("其他", |ui| {
+                                    ui.collapsing(RichText::new("views"), |ui| {
+                                        ui.collapsing(RichText::new("Student"), |ui| {
+                                            ui.label("P: id");
+                                            if ui.button("P: id").clicked() {}
+                                            if ui.button("N: name").clicked() {}
+                                            if ui.button("N: age").clicked() {}
+                                        });
+                                    });
                                 });
                             });
-                        });
+
+                            // 数据库被点击时，触发查询所有数据表
+                            if db_collapsing.header_response.clicked() && db.tables.is_none() {
+                                if let Err(e) = self.conn_manager.send(message::Message::Select {
+                                    key: conn.config.get_name(),
+                                    db: Some(db_name.to_string()),
+                                    table: None,
+                                    r#type: message::SelectType::Tables,
+                                    sql: sqls::get_table_meta(&db.name),
+                                }) {
+                                    tracing::error!("查询数据库失败：{}", e);
+                                }
+                            }
+                        }
                     }
                 },
             );
+
             // 数据库连接被点击时，触发查询所有连接
-            if conn_name.header_response.clicked() {
+            if conn_collapsing.header_response.clicked() && conn.databases.is_none() {
                 if let Err(e) = self.conn_manager.send(message::Message::Select {
                     key: conn.config.get_name(),
                     db: None,
-                    r#type: message::SelectType::Database,
+                    table: None,
+                    r#type: message::SelectType::Databases,
                     sql: sqls::get_databases(),
                 }) {
                     tracing::error!("查询数据库失败：{}", e);
                 }
             }
+
             // if res.header_response.secondary_clicked() {
-            conn_name.header_response.context_menu(|ui| {
+            conn_collapsing.header_response.context_menu(|ui| {
                 egui::menu::bar(ui, |ui| {
                     ui.vertical_centered_justified(|ui| {
                         ui.spacing();
@@ -174,58 +223,8 @@ impl DataBase {
         }
     }
 
-    fn make_new_conn(&mut self, ctx: &Context) {
-        eframe::egui::Window::new("配置新的连接")
-            .open(&mut self.tmp_config_open)
-            .show(ctx, |ui| {
-                ui.label(RichText::new("请输入 IP"));
-                let input_1 = ui.text_edit_singleline(&mut self.tmp_config.ip);
-                ui.label(RichText::new("请输入 Port"));
-                let input_2 = ui.text_edit_singleline(&mut self.tmp_config.port);
-                ui.label(RichText::new("请输入 用户名"));
-                let input_3 = ui.text_edit_singleline(&mut self.tmp_config.username);
-                ui.label(RichText::new("请输入 密码"));
-                let input_4 = ui.text_edit_singleline(&mut self.tmp_config.password);
-                // ui.label(RichText::new("请输入 数据库名称"));
-                // let input_5 = ui.text_edit_singleline(&mut self.tmp_config.db);
-
-                // if input_5.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {}
-                ui.allocate_ui_with_layout(
-                    Vec2::new(ui.available_width(), 0.),
-                    Layout::right_to_left(),
-                    |ui| {
-                        let mut conn_btn = ui.button("连接并保存");
-                        conn_btn = conn_btn.on_hover_text("新建一个新的数据库连接，并添加至侧边栏");
-                        let mut test_btn = ui.button("测试连接");
-                        test_btn = test_btn.on_hover_text("仅测试，不添加到侧边栏");
-                        if conn_btn.clicked() {
-                            if let Err(e) =
-                                self.conn_manager.send(database::message::Message::Connect {
-                                    config: self.tmp_config.clone(),
-                                    save: true,
-                                })
-                            {
-                                tracing::error!("发送连接请求失败： {}", e);
-                            }
-                            tracing::info!("发送连接请求成功");
-                        }
-                        if test_btn.clicked() {
-                            if let Err(e) =
-                                self.conn_manager.send(database::message::Message::Connect {
-                                    config: self.tmp_config.clone(),
-                                    save: false,
-                                })
-                            {
-                                tracing::error!("发送连接请求失败： {}", e);
-                            }
-                            tracing::info!("发送连接请求成功");
-                        }
-                    },
-                );
-            });
-    }
-
     fn handle_sql(&mut self) {
+        use sqlx::Row;
         if let Ok(v) = self.conn_manager.try_recv() {
             match v {
                 message::Response::NewConn {
@@ -233,7 +232,7 @@ impl DataBase {
                     save,
                     result,
                 } => {
-                    tracing::info!("连接成功！");
+                    tracing::info!("连接数据库成功！");
                     if save == false {
                         return;
                     }
@@ -242,22 +241,52 @@ impl DataBase {
                         Conn {
                             config,
                             conn: result,
-                            databases: vec![],
+                            databases: None,
                         },
                     );
-                    self.tmp_config_open = false;
+                    self.config_new_conn.close();
                 }
                 message::Response::Databases { key, data } => {
-                    tracing::info!("{:?}", data);
-                    tracing::info!("查询数据库成功");
-                    use sqlx::Row;
-                    self.conns.inner.get_mut(&key).unwrap().databases = data
+                    tracing::info!("查询所有数据库成功");
+                    let metas = data
                         .iter()
                         .map(|x| {
                             let name: String = x.get(0);
-                            DB { name }
+                            (name.clone(), DB { name, tables: None })
                         })
                         .collect();
+                    if let Some(conn) = self.get_conn_mut(&key) {
+                        conn.databases = Some(metas)
+                    }
+                }
+                message::Response::Tables { key, db, data } => {
+                    tracing::info!("查询数据表元数据成功！");
+                    let data: Vec<TableMeta> = data.iter().map(|x| x.into()).collect();
+                    let mut map: BTreeMap<String, Vec<TableMeta>> = BTreeMap::new();
+                    for row in data.into_iter() {
+                        let table_name = &row.table_name;
+                        if map.contains_key(table_name) {
+                            map.get_mut(table_name).unwrap().push(row);
+                        } else {
+                            map.insert(table_name.to_owned(), vec![]);
+                        }
+                    }
+                    if let Some(db) = self.get_db_mut(&key, &db) {
+                        db.tables = Some(map);
+                    }
+                }
+                message::Response::DataRows {
+                    key,
+                    db,
+                    table,
+                    data,
+                } => {
+                    tracing::info!("查询表数据成功！");
+                    tracing::info!("{:#?}", data);
+                    if let Some(metas) = self.get_fields(&key, &db, &table) {
+                        // for column in metas.iter() {}
+                        tracing::info!("{:#?}", metas);
+                    }
                 }
             }
         }
