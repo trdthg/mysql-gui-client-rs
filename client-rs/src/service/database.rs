@@ -151,6 +151,7 @@ async fn handle_select(
         SelectType::Tables => {
             let rows: Vec<sqlx::mysql::MySqlRow> =
                 sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
+            tracing::info!("查询数量 {}", rows.len());
             if let Err(e) = s.send(message::Response::Tables {
                 key,
                 db: db.unwrap(),

@@ -1,7 +1,11 @@
 use eframe::egui::{self, Context, ScrollArea};
 
+use crate::service::database::sqls::TableMeta;
+
 pub struct Table {
     state: State,
+    fields: Option<Vec<TableMeta>>,
+    datas: Vec<sqlx::mysql::MySqlRow>,
 }
 #[derive(PartialEq)]
 enum State {
@@ -13,7 +17,11 @@ enum State {
 }
 impl Default for Table {
     fn default() -> Self {
-        Self { state: State::None }
+        Self {
+            state: State::None,
+            fields: None,
+            datas: vec![],
+        }
     }
 }
 
@@ -41,94 +49,70 @@ impl eframe::App for Table {
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
-            //
             self.show_content(ui, ctx);
-            //             use egui_extras::{Size, StripBuilder};
-            // StripBuilder::new(ui)
-            //     .size(Size::remainder()) // for the table
-            //     .size(Size::exact(10.)) // for the source code link
-            //     .vertical(|mut strip| {
-            //         strip.cell(|ui| {
-            //             self.show_content(ui, ctx);
-            //         });
-            //         strip.cell(|ui| {
-            //             ui.horizontal(|ui| {
-            //                 if ui.button("奇妙的东西").clicked() {};
-            //                 if ui.button("奇妙的东西").clicked() {};
-            //                 if ui.button("奇妙的东西").clicked() {};
-            //             });
-            //         });
-            //     });
         });
     }
 }
 
 impl Table {
+    pub fn update_content(&mut self, fields: Vec<TableMeta>, datas: Vec<sqlx::mysql::MySqlRow>) {
+        //
+        self.fields = Some(fields);
+        self.datas = datas;
+    }
+
     pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
         use egui_extras::{Size, TableBuilder};
-        TableBuilder::new(ui)
-            .striped(true)
-            .scroll(true)
-            .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
-            .column(Size::initial(60.0).at_least(40.0))
-            .column(Size::initial(60.0).at_least(40.0))
-            .column(Size::initial(60.0).at_least(40.0))
-            .column(Size::initial(60.0).at_least(40.0))
-            .column(Size::initial(60.0).at_least(40.0))
-            .column(Size::initial(90.0).at_least(90.0))
-            .column(Size::remainder().at_least(60.0))
-            // .resizable(self.resizable)
-            .header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.heading("Row");
-                });
-                header.col(|ui| {
-                    ui.heading("Clock");
-                });
-                header.col(|ui| {
-                    ui.heading("Content");
-                });
-                header.col(|ui| {
-                    ui.heading("Extra 1");
-                });
-                header.col(|ui| {
-                    ui.heading("Extra 2");
-                });
-                header.col(|ui| {
-                    ui.heading("Extra 3");
-                });
-            })
-            .body(|mut body| {
-                for row_index in 0..100 {
-                    let is_thick = row_index % 2 == 0;
-                    let row_height = if is_thick { 30.0 } else { 18.0 };
-                    body.row(row_height, |mut row| {
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.style_mut().wrap = Some(false);
-                            if is_thick {
-                                ui.heading("Extra thick row");
-                            } else {
-                                ui.label("Normal row");
-                            }
-                        });
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            let mut text = format!("{row_index}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-                            ui.text_edit_singleline(&mut text);
-                        });
+        tracing::info!("开始渲染表格...");
+        if let Some(fields) = &self.fields {
+            tracing::info!(
+                "字段数量：{} 数据列数：{} {}",
+                fields.len(),
+                self.datas[0].len(),
+                self.datas[0].columns().len(),
+            );
+            use sqlx::Row;
+            let mut tb = TableBuilder::new(ui)
+                .striped(true)
+                .scroll(true)
+                .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+                .resizable(true);
+            tracing::info!("设置列数列宽...");
+            // for _ in self.fields.iter() {
+            //     tb = tb.column(Size::initial(60.0).at_least(40.0));
+            // }
+            tb = tb.columns(
+                Size::Absolute {
+                    initial: 50.,
+                    range: (10., 200.),
+                },
+                fields.len(),
+            );
+            tracing::info!("构造 header...");
+            let tb = tb.header(20.0, |mut header| {
+                for field in fields.iter() {
+                    header.col(|ui| {
+                        ui.heading(&field.column_name);
                     });
                 }
             });
+            tracing::info!("构造 body...");
+            tb.body(|mut body| {
+                for data in self.datas.iter() {
+                    let height = 18.0;
+                    body.row(height, |mut row| {
+                        for (i, meta) in data.columns().iter().enumerate() {
+                            row.col(|ui| {
+                                let data_str: String =
+                                    data.try_get(i).unwrap_or("default".to_string());
+                                ui.label(data_str);
+                            });
+                        }
+                    })
+                }
+            });
+        } else {
+            ui.centered_and_justified(|ui| ui.spinner());
+        }
     }
 }

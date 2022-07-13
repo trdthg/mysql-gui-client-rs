@@ -43,7 +43,10 @@ impl eframe::App for Article {
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
-            // self.table.update(ctx, frame);
+            if self.articles.is_empty() {
+                ui.centered_and_justified(|ui| ui.spinner());
+                return;
+            }
             self.render_articles(ui);
         });
     }
@@ -63,11 +66,6 @@ impl Article {
     }
 
     fn render_articles(&mut self, ui: &mut egui::Ui) {
-        if self.articles.is_empty() {
-            ui.centered_and_justified(|ui| ui.spinner());
-            return;
-        }
-
         let scroll_area = ScrollArea::vertical()
             .always_show_scroll(false)
             .auto_shrink([false; 2]);

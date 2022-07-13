@@ -1,6 +1,7 @@
 mod component;
 pub mod table;
-use std::collections::BTreeMap;
+mod tabwindow;
+use std::{collections::BTreeMap, time::Duration};
 
 use eframe::{
     egui::{self, RichText, ScrollArea},
@@ -19,10 +20,13 @@ use table::Table;
 
 use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
 
+use self::tabwindow::TabWindow;
+
 pub struct DataBase {
     state: String,
     conns: Conns,
     table: Table,
+    tabs: TabWindow,
     config_new_conn: component::ConfigNewConnWindow,
     conn_manager: DatabaseClient,
 }
@@ -72,6 +76,7 @@ impl eframe::App for DataBase {
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
             self.table.update(ctx, frame);
+            // self.tabs.run(ctx);
         });
 
         egui::panel::TopBottomPanel::bottom("数据库管理 bottom").show(ctx, |ui| {
@@ -120,6 +125,7 @@ impl DataBase {
             table: Default::default(),
             conn_manager,
             config_new_conn: component::ConfigNewConnWindow::default(),
+            tabs: TabWindow::default(),
         }
     }
 
@@ -262,13 +268,24 @@ impl DataBase {
                 message::Response::Tables { key, db, data } => {
                     tracing::info!("查询数据表元数据成功！");
                     let data: Vec<TableMeta> = data.iter().map(|x| x.into()).collect();
+                    tracing::info!("总字段数: {}", data.len());
                     let mut map: BTreeMap<String, Vec<TableMeta>> = BTreeMap::new();
                     for row in data.into_iter() {
                         let table_name = &row.table_name;
                         if map.contains_key(table_name) {
                             map.get_mut(table_name).unwrap().push(row);
                         } else {
-                            map.insert(table_name.to_owned(), vec![]);
+                            map.insert(table_name.to_owned(), vec![row]);
+                        }
+                    }
+                    for (db, fields) in map.iter() {
+                        tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
+                        for field in fields {
+                            tracing::trace!(
+                                "名称： {}  类型：{}",
+                                field.column_name,
+                                field.column_type
+                            );
                         }
                     }
                     if let Some(db) = self.get_db_mut(&key, &db) {
@@ -282,10 +299,12 @@ impl DataBase {
                     data,
                 } => {
                     tracing::info!("查询表数据成功！");
-                    tracing::info!("{:#?}", data);
-                    if let Some(metas) = self.get_fields(&key, &db, &table) {
-                        // for column in metas.iter() {}
-                        tracing::info!("{:#?}", metas);
+                    if let Some(fields) = self.get_fields(&key, &db, &table) {
+                        for field in fields.iter() {
+                            println!("{} {}", field.column_name, field.column_type);
+                        }
+                        tracing::info!("列数：{}  实际列数：{}", fields.len(), data[0].len());
+                        self.table.update_content(fields.to_owned(), data);
                     }
                 }
             }

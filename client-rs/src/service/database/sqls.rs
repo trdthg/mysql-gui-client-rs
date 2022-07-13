@@ -56,7 +56,6 @@ pub struct TableMeta {
 impl From<&sqlx::mysql::MySqlRow> for TableMeta {
     fn from(row: &sqlx::mysql::MySqlRow) -> Self {
         use sqlx::Row;
-        println!("{:#?}", row);
         TableMeta {
             table_schema: row.get(0),
             table_name: row.get(1),
