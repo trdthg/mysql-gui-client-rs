@@ -76,16 +76,26 @@ impl Table {
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .resizable(true);
             tracing::info!("设置列数列宽...");
-            // for _ in self.fields.iter() {
-            //     tb = tb.column(Size::initial(60.0).at_least(40.0));
-            // }
-            tb = tb.columns(
-                Size::Absolute {
-                    initial: 250.,
-                    range: (10., 400.),
-                },
-                fields.len(),
-            );
+            for field in fields {
+                let init_width = match field.datatype {
+                    DataType::TinyInt => 50.,
+                    DataType::SmallInt => 50.,
+                    DataType::Integer => 50.,
+                    DataType::BigInt => 50.,
+                    DataType::Varchar => 180.,
+                    DataType::Char { width } => 10. * width as f32,
+                    DataType::Boolean => 50.,
+                    DataType::Real => 50.,
+                    DataType::Double => 50.,
+                    DataType::Decimal { scale, precision } => (scale + precision) as f32 * 10.,
+                    DataType::Date => 60.,
+                    DataType::Time => 60.,
+                    DataType::DateTime => 120.,
+                    DataType::TimeStamp => 50.,
+                };
+                let size = Size::initial(init_width).at_least(50.).at_most(400.0);
+                tb = tb.column(size);
+            }
             tracing::info!("构造 header...");
             let tb = tb.header(20.0, |mut header| {
                 for field in fields.iter() {
