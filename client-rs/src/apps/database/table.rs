@@ -92,24 +92,46 @@ impl Table {
             let tb = tb.header(20.0, |mut header| {
                 for field in fields.iter() {
                     header.col(|ui| {
-                        ui.heading(&field.column_name);
+                        ui.vertical(|ui| {
+                            ui.heading(&field.column_name);
+                            ui.heading(&field.data_type);
+                            ui.separator();
+                        });
                     });
                 }
             });
             tracing::info!("构造 body...");
-            tb.body(|mut body| {
-                for data in self.datas.iter() {
-                    let height = 18.0;
-                    body.row(height, |mut row| {
-                        for (i, meta) in data.columns().iter().enumerate() {
-                            row.col(|ui| {
-                                let data_str: String =
-                                    data.try_get(i).unwrap_or("default".to_string());
-                                ui.label(data_str);
-                            });
-                        }
-                    })
-                }
+            tb.body(|body| {
+                let height = 18.0;
+                // 一次添加所有行 (相同高度)（效率最高）
+                body.rows(height, self.datas.len(), |index, mut row| {
+                    for (i, meta) in self.datas[index].columns().iter().enumerate() {
+                        row.col(|ui| {
+                            let data_str: String = self.datas[index]
+                                .try_get(i)
+                                .unwrap_or("default".to_string());
+                            ui.label(data_str);
+                        });
+                    }
+                });
+
+                // 动态高度（效率中等）
+                // body.heterogeneous_rows(height_iter, |index, mut row| {
+
+                // });
+
+                // 每次添加一行（效率最低）
+                // for data in self.datas.iter() {
+                //     body.row(height, |mut row| {
+                //         for (i, meta) in data.columns().iter().enumerate() {
+                //             row.col(|ui| {
+                //                 let data_str: String =
+                //                     data.try_get(i).unwrap_or("default".to_string());
+                //                 ui.label(data_str);
+                //             });
+                //         }
+                //     })
+                // }
             });
         } else {
             ui.centered_and_justified(|ui| ui.spinner());
