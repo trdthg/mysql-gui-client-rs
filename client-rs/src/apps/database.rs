@@ -161,11 +161,17 @@ impl DataBase {
                                             ui.collapsing(RichText::new(table_name), |ui| {
                                                 // 各字段
                                                 for field in table.iter() {
-                                                    if ui
-                                                        .button(&field.details.column_name)
-                                                        .clicked()
-                                                    {
-                                                    }
+                                                    ui.horizontal(|ui| {
+                                                        if ui
+                                                            .button(&field.details.column_name)
+                                                            .clicked()
+                                                        {
+                                                            //
+                                                        }
+                                                        ui.weak(RichText::new(
+                                                            &field.details.column_type,
+                                                        ));
+                                                    });
                                                 }
                                             });
                                         if table_collapsing.header_response.double_clicked() {

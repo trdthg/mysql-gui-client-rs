@@ -1,6 +1,6 @@
 use crate::service::database::datatype::DataType;
 use chrono::DateTime;
-use eframe::egui::{self, Context, ScrollArea};
+use eframe::egui::{self, Context, RichText, ScrollArea};
 use rust_decimal::Decimal;
 
 use super::Field;
@@ -52,7 +52,9 @@ impl eframe::App for Table {
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
-            self.show_content(ui, ctx);
+            ScrollArea::horizontal().show(ui, |ui| {
+                self.show_content(ui, ctx);
+            });
         });
     }
 }
@@ -76,25 +78,29 @@ impl Table {
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .resizable(true);
             tracing::info!("设置列数列宽...");
-            for field in fields {
+            for (i, field) in fields.iter().enumerate() {
                 let init_width = match field.datatype {
                     DataType::TinyInt => 50.,
                     DataType::SmallInt => 50.,
-                    DataType::Integer => 50.,
-                    DataType::BigInt => 50.,
-                    DataType::Varchar => 180.,
+                    DataType::Integer => 60.,
+                    DataType::BigInt => 80.,
+                    DataType::Varchar => 100.,
                     DataType::Char { width } => 10. * width as f32,
                     DataType::Boolean => 50.,
                     DataType::Real => 50.,
-                    DataType::Double => 50.,
+                    DataType::Double => 60.,
                     DataType::Decimal { scale, precision } => (scale + precision) as f32 * 10.,
-                    DataType::Date => 60.,
-                    DataType::Time => 60.,
+                    DataType::Date => 80.,
+                    DataType::Time => 80.,
                     DataType::DateTime => 120.,
                     DataType::TimeStamp => 50.,
                 };
                 let size = Size::initial(init_width).at_least(50.).at_most(400.0);
-                tb = tb.column(size);
+                if i == fields.len() {
+                    tb = tb.column(Size::remainder());
+                } else {
+                    tb = tb.column(size);
+                }
             }
             tracing::info!("构造 header...");
             let tb = tb.header(20.0, |mut header| {
@@ -115,56 +121,55 @@ impl Table {
                 body.rows(height, self.datas.len(), |index, mut row| {
                     for (i, meta) in self.datas[index].columns().iter().enumerate() {
                         row.col(|ui| {
-                            // let a: String = meta.into();
-                            match fields[i].datatype {
+                            let data_str = match fields[i].datatype {
                                 DataType::TinyInt => {
                                     let data: i8 = self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::SmallInt => {
                                     let data: i16 =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Integer => {
                                     let data: i32 =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::BigInt => {
                                     let data: i64 =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Varchar => {
                                     let data: String =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Char { .. } => {
                                     let data: String =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Boolean => {
                                     let data: bool =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Real => {
                                     let data: f32 =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Double => {
                                     let data: f64 =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::Decimal { .. } => {
                                     let data: Decimal =
                                         self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    data.to_string()
                                 }
                                 DataType::DateTime => {
                                     let data: Result<
@@ -173,7 +178,9 @@ impl Table {
                                     > = self.datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
-                                        ui.label(data.to_string());
+                                        data.to_string()
+                                    } else {
+                                        "日期时间".to_string()
                                     }
                                 }
                                 DataType::Date => {
@@ -181,7 +188,9 @@ impl Table {
                                         self.datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
-                                        ui.label(data.to_string());
+                                        data.to_string()
+                                    } else {
+                                        "日期".to_string()
                                     }
                                 }
                                 DataType::Time => {
@@ -189,15 +198,24 @@ impl Table {
                                         self.datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
-                                        ui.label(data.to_string());
+                                        data.to_string()
+                                    } else {
+                                        "时间".to_string()
                                     }
                                 }
                                 DataType::TimeStamp => {
-                                    let data: u64 =
-                                        self.datas[index].try_get(i).unwrap_or_default();
-                                    ui.label(data.to_string());
+                                    let data: Result<chrono::DateTime<chrono::Utc>, sqlx::Error> =
+                                        self.datas[index].try_get(i);
+                                    if let Ok(data) = data {
+                                        let data = data.to_string();
+                                        data.to_string()
+                                    } else {
+                                        "时间戳".to_string()
+                                    }
                                 }
-                            }
+                            };
+                            let label = ui.label(&data_str);
+                            label.on_hover_text(RichText::new(&data_str));
                         });
                     }
                 });
