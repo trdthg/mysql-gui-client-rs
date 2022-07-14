@@ -75,6 +75,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayvec"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
+
+[[package]]
 name = "async-trait"
 version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -117,6 +123,17 @@ name = "base64ct"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bdca834647821e0b13d9539a8634eb62d3501b6b6c2cec1722786ee6671b851"
+
+[[package]]
+name = "bigdecimal"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6aaf33151a6429fe9211d1b276eafdf70cdff28b071e76c0b0e1503221ea3744"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
 
 [[package]]
 name = "bitflags"
@@ -245,6 +262,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "chrono",
  "confy",
  "console_error_panic_hook",
@@ -255,6 +273,7 @@ dependencies = [
  "log",
  "reqwasm",
  "reqwest",
+ "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
@@ -2034,6 +2053,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust_decimal"
+version = "1.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34a3bb58e85333f1ab191bf979104b586ebd77475bc6681882825f4532dfe87c"
+dependencies = [
+ "arrayvec",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
 name = "rustls"
 version = "0.20.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2315,6 +2345,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "bytes",
+ "chrono",
  "crc",
  "crossbeam-queue",
  "digest",
@@ -2338,6 +2369,7 @@ dependencies = [
  "percent-encoding",
  "rand",
  "rsa",
+ "rust_decimal",
  "rustls",
  "rustls-pemfile",
  "sha-1",

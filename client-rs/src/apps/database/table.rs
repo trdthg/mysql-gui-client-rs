@@ -1,10 +1,13 @@
+use crate::service::database::datatype::DataType;
+use chrono::DateTime;
 use eframe::egui::{self, Context, ScrollArea};
+use rust_decimal::Decimal;
 
-use crate::service::database::sqls::TableMeta;
+use super::Field;
 
 pub struct Table {
     state: State,
-    fields: Option<Vec<TableMeta>>,
+    fields: Option<Vec<Field>>,
     datas: Vec<sqlx::mysql::MySqlRow>,
 }
 #[derive(PartialEq)]
@@ -55,7 +58,7 @@ impl eframe::App for Table {
 }
 
 impl Table {
-    pub fn update_content(&mut self, fields: Vec<TableMeta>, datas: Vec<sqlx::mysql::MySqlRow>) {
+    pub fn update_content(&mut self, fields: Vec<Field>, datas: Vec<sqlx::mysql::MySqlRow>) {
         //
         self.fields = Some(fields);
         self.datas = datas;
@@ -65,12 +68,7 @@ impl Table {
         use egui_extras::{Size, TableBuilder};
         tracing::info!("开始渲染表格...");
         if let Some(fields) = &self.fields {
-            tracing::info!(
-                "字段数量：{} 数据列数：{} {}",
-                fields.len(),
-                self.datas[0].len(),
-                self.datas[0].columns().len(),
-            );
+            tracing::info!("字段数量：{}", fields.len(),);
             use sqlx::Row;
             let mut tb = TableBuilder::new(ui)
                 .striped(true)
@@ -83,8 +81,8 @@ impl Table {
             // }
             tb = tb.columns(
                 Size::Absolute {
-                    initial: 50.,
-                    range: (10., 200.),
+                    initial: 250.,
+                    range: (10., 400.),
                 },
                 fields.len(),
             );
@@ -93,8 +91,8 @@ impl Table {
                 for field in fields.iter() {
                     header.col(|ui| {
                         ui.vertical(|ui| {
-                            ui.heading(&field.column_name);
-                            ui.heading(&field.data_type);
+                            ui.heading(&field.details.column_name);
+                            ui.heading(&field.details.data_type);
                             ui.separator();
                         });
                     });
@@ -107,10 +105,89 @@ impl Table {
                 body.rows(height, self.datas.len(), |index, mut row| {
                     for (i, meta) in self.datas[index].columns().iter().enumerate() {
                         row.col(|ui| {
-                            let data_str: String = self.datas[index]
-                                .try_get(i)
-                                .unwrap_or("default".to_string());
-                            ui.label(data_str);
+                            // let a: String = meta.into();
+                            match fields[i].datatype {
+                                DataType::TinyInt => {
+                                    let data: i8 = self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::SmallInt => {
+                                    let data: i16 =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Integer => {
+                                    let data: i32 =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::BigInt => {
+                                    let data: i64 =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Varchar => {
+                                    let data: String =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Char { .. } => {
+                                    let data: String =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Boolean => {
+                                    let data: bool =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Real => {
+                                    let data: f32 =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Double => {
+                                    let data: f64 =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::Decimal { .. } => {
+                                    let data: Decimal =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                                DataType::DateTime => {
+                                    let data: Result<
+                                        sqlx::types::chrono::NaiveDateTime,
+                                        sqlx::Error,
+                                    > = self.datas[index].try_get(i);
+                                    if let Ok(data) = data {
+                                        let data = data.to_string();
+                                        ui.label(data.to_string());
+                                    }
+                                }
+                                DataType::Date => {
+                                    let data: Result<sqlx::types::chrono::NaiveDate, sqlx::Error> =
+                                        self.datas[index].try_get(i);
+                                    if let Ok(data) = data {
+                                        let data = data.to_string();
+                                        ui.label(data.to_string());
+                                    }
+                                }
+                                DataType::Time => {
+                                    let data: Result<sqlx::types::chrono::NaiveTime, sqlx::Error> =
+                                        self.datas[index].try_get(i);
+                                    if let Ok(data) = data {
+                                        let data = data.to_string();
+                                        ui.label(data.to_string());
+                                    }
+                                }
+                                DataType::TimeStamp => {
+                                    let data: u64 =
+                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    ui.label(data.to_string());
+                                }
+                            }
                         });
                     }
                 });

@@ -1,3 +1,5 @@
+use super::datatype::DataType;
+
 pub fn get_databases() -> String {
     format!("SHOW DATABASES;")
 }
@@ -44,13 +46,45 @@ pub struct TableMeta {
     pub is_nullable: String,                   // 是否为空
     pub data_type: String,                     // 数据类型
     pub column_type: String,                   // 列类型
-    pub character_maximum_length: Option<u64>, // 字符最大长度
-    pub numeric_precision: Option<u64>,        // 数值精度 (最大位数)
+    pub character_maximum_length: Option<u16>, // 字符最大长度
+    pub numeric_precision: Option<u16>,        // 数值精度 (最大位数)
 
-    pub numeric_scale: Option<u64>,     // 小数精度
+    pub numeric_scale: Option<u16>,     // 小数精度
     pub column_key: Option<String>,     // KEY
     pub extra: Option<String>,          // 额外说明
     pub column_comment: Option<String>, //注释
+}
+
+impl TableMeta {
+    pub fn get_type(&self) -> DataType {
+        match self.data_type.as_str() {
+            "tinyint" => DataType::TinyInt,
+            "smallint" => DataType::SmallInt,
+            "int" => DataType::Integer,
+            "bigint" => DataType::BigInt,
+
+            "float" => DataType::Real,
+            "double" => DataType::Double,
+
+            "varchar" => DataType::Varchar,
+            "char" => DataType::Char {
+                width: self.character_maximum_length.unwrap(),
+            },
+            "decimal" => DataType::Decimal {
+                scale: self.numeric_precision.unwrap(),
+                precision: self.numeric_scale.unwrap(),
+            },
+            "bool" | "bit" => DataType::Boolean,
+            "date" => DataType::Date,
+            "time" => DataType::Time,
+            "datetime" => DataType::DateTime,
+            "timestamp" => DataType::TimeStamp,
+            _ => {
+                tracing::error!("没有实现 {}", self.data_type.as_str());
+                panic!();
+            }
+        }
+    }
 }
 
 impl From<&sqlx::mysql::MySqlRow> for TableMeta {

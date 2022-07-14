@@ -5,6 +5,7 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     RwLock,
 };
+pub mod datatype;
 pub mod entity;
 pub mod message;
 pub mod sqls;
@@ -160,18 +161,21 @@ async fn handle_select(
                 tracing::error!("返回数据失败：{}", e);
             }
         }
-        SelectType::Table => {
-            let rows: Vec<sqlx::mysql::MySqlRow> =
-                sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
-            if let Err(e) = s.send(message::Response::DataRows {
-                key,
-                table: table.unwrap(),
-                db: db.unwrap(),
-                data: rows,
-            }) {
-                tracing::error!("返回数据失败：{}", e);
+        SelectType::Table => match sqlx::query(&sql).fetch_all(&mut conn).await {
+            Ok(rows) => {
+                if let Err(e) = s.send(message::Response::DataRows {
+                    key,
+                    table: table.unwrap(),
+                    db: db.unwrap(),
+                    data: rows,
+                }) {
+                    tracing::error!("返回数据失败：{}", e);
+                }
             }
-        }
+            Err(e) => {
+                tracing::error!("查询失败：{}", e);
+            }
+        },
     }
 }
 
