@@ -1,5 +1,8 @@
 use crate::service::database::datatype::DataType;
-use eframe::egui::{self, Context, RichText, ScrollArea};
+use eframe::{
+    egui::{self, Context, Label, RichText, ScrollArea, Sense},
+    epaint::Color32,
+};
 use rust_decimal::Decimal;
 
 use super::Field;
@@ -8,6 +11,8 @@ pub struct Table {
     state: State,
     fields: Option<Box<Vec<Field>>>,
     datas: Option<Box<Vec<sqlx::mysql::MySqlRow>>>,
+    count: bool,
+    input_cache: Box<Vec<String>>,
 }
 #[derive(PartialEq)]
 enum State {
@@ -17,12 +22,15 @@ enum State {
     Refresh,
     Commit,
 }
+
 impl Default for Table {
     fn default() -> Self {
         Self {
             state: State::None,
             fields: None,
             datas: None,
+            count: true,
+            input_cache: Box::new(vec![]),
         }
     }
 }
@@ -39,8 +47,6 @@ impl eframe::App for Table {
 
         egui::panel::TopBottomPanel::bottom("表管理 bottom").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // egui::reset_button(ui, self);
-                // ui.add(crate::egui_github_link_file!());
                 ui.label(format!("当前滚动条偏移量：px",));
                 ui.horizontal(|ui| {
                     if ui.button("奇妙的东西").clicked() {};
@@ -65,6 +71,11 @@ impl Table {
         datas: Box<Vec<sqlx::mysql::MySqlRow>>,
     ) {
         //
+        let mut v = Vec::new();
+        for _ in 0..fields.len() {
+            v.push(String::new())
+        }
+        self.input_cache = Box::new(v);
         self.fields = Some(fields);
         self.datas = Some(datas);
     }
@@ -80,48 +91,49 @@ impl Table {
                 .scroll(true)
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .resizable(true);
+
             tracing::info!("设置列数列宽...");
+            if self.count {
+                tb = tb.column(Size::Absolute {
+                    initial: 20.,
+                    range: (0., 40.),
+                });
+            }
             for (i, field) in fields.iter().enumerate() {
-                let init_width = match field.datatype {
-                    DataType::TinyInt => 50.,
-                    DataType::SmallInt => 50.,
-                    DataType::Integer => 60.,
-                    DataType::BigInt => 80.,
-                    DataType::Varchar => 100.,
-                    DataType::Char { width } => 10. * width as f32,
-                    DataType::Boolean => 50.,
-                    DataType::Real => 50.,
-                    DataType::Double => 60.,
-                    DataType::Decimal { scale, precision } => (scale + precision) as f32 * 10.,
-                    DataType::Date => 80.,
-                    DataType::Time => 80.,
-                    DataType::DateTime => 120.,
-                    DataType::TimeStamp => 50.,
-                };
-                let size = Size::initial(init_width).at_least(50.).at_most(400.0);
-                if i == fields.len() {
-                    tb = tb.column(Size::remainder());
+                let init_width = field.datatype.get_default_width();
+                if i == fields.len() - 1 {
+                    tb = tb.column(Size::Remainder {
+                        range: (init_width * 2., f32::INFINITY),
+                    });
                 } else {
+                    let size = Size::initial(init_width).at_least(50.).at_most(400.0);
                     tb = tb.column(size);
                 }
             }
+
             tracing::info!("构造 header...");
             let tb = tb.header(20.0, |mut header| {
+                if self.count {
+                    header.col(|ui| {
+                        ui.colored_label(Color32::DARK_GRAY, "");
+                    });
+                }
                 for field in fields.iter() {
                     header.col(|ui| {
-                        ui.vertical(|ui| {
-                            ui.heading(&field.details.column_name);
-                            ui.heading(&field.details.data_type);
-                            ui.separator();
-                        });
+                        ui.heading(&field.details.column_name);
                     });
                 }
             });
             tracing::info!("构造 body...");
             tb.body(|body| {
-                let height = 18.0;
+                let height = 18.0 * 2.;
                 // 一次添加所有行 (相同高度)（效率最高）
                 body.rows(height, datas.len(), |index, mut row| {
+                    if self.count {
+                        row.col(|ui| {
+                            ui.label((index + 1).to_string());
+                        });
+                    }
                     for (i, meta) in datas[index].columns().iter().enumerate() {
                         row.col(|ui| {
                             let data_str = match fields[i].datatype {
@@ -208,8 +220,28 @@ impl Table {
                                     }
                                 }
                             };
-                            let label = ui.label(&data_str);
-                            label.on_hover_text(RichText::new(&data_str));
+
+                            let label = Label::new(&data_str).sense(Sense::click());
+                            let label = ui.add(label).on_hover_ui(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.small("点击复制");
+                                    ui.label(&data_str);
+                                });
+                            });
+                            if label.clicked() {
+                                ui.output().copied_text = data_str.to_owned();
+                            }
+
+                            if label.secondary_clicked() {
+                                self.input_cache[i] = data_str.to_owned();
+                            }
+
+                            label.context_menu(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.label("编辑");
+                                    ui.text_edit_singleline(&mut self.input_cache[i]);
+                                });
+                            });
                         });
                     }
                 });

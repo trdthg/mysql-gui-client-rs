@@ -1,7 +1,7 @@
-mod component;
-pub mod table;
-mod tabwindow;
-use std::{collections::BTreeMap, time::Duration};
+mod config_new_conn;
+mod table;
+
+use std::collections::BTreeMap;
 
 use eframe::{
     egui::{self, RichText, ScrollArea},
@@ -21,14 +21,11 @@ use table::Table as TableComponent;
 
 use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
 
-use self::tabwindow::TabWindow;
-
 pub struct DataBase {
     state: String,
     conns: Conns,
     table: TableComponent,
-    tabs: TabWindow,
-    config_new_conn: component::ConfigNewConnWindow,
+    config_new_conn: config_new_conn::ConfigNewConnWindow,
     conn_manager: DatabaseClient,
 }
 
@@ -62,8 +59,8 @@ impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::panel::TopBottomPanel::top("数据库管理 top").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.selectable_value(&mut self.state, "".to_string(), "数据管理");
-                ui.selectable_value(&mut self.state, "".to_string(), "监控");
+                ui.selectable_value(&mut self.state, "".to_string(), "数据查询");
+                ui.selectable_value(&mut self.state, "".to_string(), "表结构");
             });
         });
 
@@ -85,7 +82,6 @@ impl eframe::App for DataBase {
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
             self.table.update(ctx, frame);
-            // self.tabs.run(ctx);
         });
 
         egui::panel::TopBottomPanel::bottom("数据库管理 bottom").show(ctx, |ui| {
@@ -133,8 +129,7 @@ impl DataBase {
             state: "aaa".into(),
             table: Default::default(),
             conn_manager,
-            config_new_conn: component::ConfigNewConnWindow::default(),
-            tabs: TabWindow::default(),
+            config_new_conn: config_new_conn::ConfigNewConnWindow::default(),
         }
     }
 
