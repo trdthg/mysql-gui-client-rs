@@ -39,6 +39,6 @@ pub enum Response {
         key: String,
         db: String,
         table: String,
-        data: Vec<sqlx::mysql::MySqlRow>,
+        data: Box<Vec<sqlx::mysql::MySqlRow>>,
     },
 }

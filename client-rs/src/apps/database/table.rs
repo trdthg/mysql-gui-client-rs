@@ -1,5 +1,4 @@
 use crate::service::database::datatype::DataType;
-use chrono::DateTime;
 use eframe::egui::{self, Context, RichText, ScrollArea};
 use rust_decimal::Decimal;
 
@@ -7,8 +6,8 @@ use super::Field;
 
 pub struct Table {
     state: State,
-    fields: Option<Vec<Field>>,
-    datas: Vec<sqlx::mysql::MySqlRow>,
+    fields: Option<Box<Vec<Field>>>,
+    datas: Option<Box<Vec<sqlx::mysql::MySqlRow>>>,
 }
 #[derive(PartialEq)]
 enum State {
@@ -23,7 +22,7 @@ impl Default for Table {
         Self {
             state: State::None,
             fields: None,
-            datas: vec![],
+            datas: None,
         }
     }
 }
@@ -60,16 +59,20 @@ impl eframe::App for Table {
 }
 
 impl Table {
-    pub fn update_content(&mut self, fields: Vec<Field>, datas: Vec<sqlx::mysql::MySqlRow>) {
+    pub fn update_content(
+        &mut self,
+        fields: Box<Vec<Field>>,
+        datas: Box<Vec<sqlx::mysql::MySqlRow>>,
+    ) {
         //
         self.fields = Some(fields);
-        self.datas = datas;
+        self.datas = Some(datas);
     }
 
     pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
         use egui_extras::{Size, TableBuilder};
         tracing::info!("开始渲染表格...");
-        if let Some(fields) = &self.fields {
+        if let (Some(fields), Some(datas)) = (&self.fields, &self.datas) {
             tracing::info!("字段数量：{}", fields.len(),);
             use sqlx::Row;
             let mut tb = TableBuilder::new(ui)
@@ -118,64 +121,55 @@ impl Table {
             tb.body(|body| {
                 let height = 18.0;
                 // 一次添加所有行 (相同高度)（效率最高）
-                body.rows(height, self.datas.len(), |index, mut row| {
-                    for (i, meta) in self.datas[index].columns().iter().enumerate() {
+                body.rows(height, datas.len(), |index, mut row| {
+                    for (i, meta) in datas[index].columns().iter().enumerate() {
                         row.col(|ui| {
                             let data_str = match fields[i].datatype {
                                 DataType::TinyInt => {
-                                    let data: i8 = self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: i8 = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::SmallInt => {
-                                    let data: i16 =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: i16 = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Integer => {
-                                    let data: i32 =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: i32 = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::BigInt => {
-                                    let data: i64 =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: i64 = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Varchar => {
-                                    let data: String =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: String = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Char { .. } => {
-                                    let data: String =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: String = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Boolean => {
-                                    let data: bool =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: bool = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Real => {
-                                    let data: f32 =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: f32 = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Double => {
-                                    let data: f64 =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: f64 = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::Decimal { .. } => {
-                                    let data: Decimal =
-                                        self.datas[index].try_get(i).unwrap_or_default();
+                                    let data: Decimal = datas[index].try_get(i).unwrap_or_default();
                                     data.to_string()
                                 }
                                 DataType::DateTime => {
                                     let data: Result<
                                         sqlx::types::chrono::NaiveDateTime,
                                         sqlx::Error,
-                                    > = self.datas[index].try_get(i);
+                                    > = datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
                                         data.to_string()
@@ -185,7 +179,7 @@ impl Table {
                                 }
                                 DataType::Date => {
                                     let data: Result<sqlx::types::chrono::NaiveDate, sqlx::Error> =
-                                        self.datas[index].try_get(i);
+                                        datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
                                         data.to_string()
@@ -195,7 +189,7 @@ impl Table {
                                 }
                                 DataType::Time => {
                                     let data: Result<sqlx::types::chrono::NaiveTime, sqlx::Error> =
-                                        self.datas[index].try_get(i);
+                                        datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
                                         data.to_string()
@@ -205,7 +199,7 @@ impl Table {
                                 }
                                 DataType::TimeStamp => {
                                     let data: Result<chrono::DateTime<chrono::Utc>, sqlx::Error> =
-                                        self.datas[index].try_get(i);
+                                        datas[index].try_get(i);
                                     if let Ok(data) = data {
                                         let data = data.to_string();
                                         data.to_string()
@@ -226,7 +220,7 @@ impl Table {
                 // });
 
                 // 每次添加一行（效率最低）
-                // for data in self.datas.iter() {
+                // for data in datas.iter() {
                 //     body.row(height, |mut row| {
                 //         for (i, meta) in data.columns().iter().enumerate() {
                 //             row.col(|ui| {

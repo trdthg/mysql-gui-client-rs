@@ -34,7 +34,7 @@ pub struct DataBase {
 
 #[derive(Clone, Debug, Default)]
 pub struct Conns {
-    pub inner: BTreeMap<String, Conn>,
+    pub inner: Box<BTreeMap<String, Conn>>,
 }
 
 #[derive(Clone, Debug)]
@@ -324,14 +324,15 @@ impl DataBase {
                 } => {
                     tracing::info!("查询表数据成功！");
                     if let Some(fields) = self.get_fields(&key, &db, &table) {
-                        for field in fields.iter() {
-                            println!(
-                                "{} {}",
-                                field.details.column_name, field.details.column_type
-                            );
-                        }
+                        // for field in fields.iter() {
+                        //     println!(
+                        //         "{} {}",
+                        //         field.details.column_name, field.details.column_type
+                        //     );
+                        // }
                         tracing::info!("列数：{}", fields.len());
-                        self.table.update_content(fields.to_owned(), data);
+                        let fields = Box::new(fields.to_owned());
+                        self.table.update_content(fields, data);
                     }
                 }
             }

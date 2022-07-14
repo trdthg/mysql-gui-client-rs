@@ -167,7 +167,7 @@ async fn handle_select(
                     key,
                     table: table.unwrap(),
                     db: db.unwrap(),
-                    data: rows,
+                    data: Box::new(rows),
                 }) {
                     tracing::error!("返回数据失败：{}", e);
                 }
