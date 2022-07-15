@@ -1,4 +1,4 @@
-use crate::apps::database::Field;
+use crate::apps::database::{Databases, Field, Tables};
 
 use super::{datatype::DataCell, entity::ConnectionConfig};
 
@@ -31,12 +31,12 @@ pub enum Response {
     },
     Databases {
         conn: String,
-        data: Vec<sqlx::mysql::MySqlRow>,
+        data: Databases,
     },
     Tables {
         conn: String,
         db: String,
-        data: Vec<sqlx::mysql::MySqlRow>,
+        data: Tables,
     },
     DataRows {
         conn: String,

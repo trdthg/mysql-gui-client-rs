@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use sqlx::Row;
@@ -11,7 +14,7 @@ pub mod entity;
 pub mod message;
 pub mod sqls;
 
-use crate::apps::database::Field;
+use crate::apps::database::{Field, DB};
 
 use self::{
     datatype::{DataCell, DataType},
@@ -142,13 +145,51 @@ async fn handle_select(
     if let Some(pool) = conns.read().await.get(&conn) {
         if let Ok(rows) = sqlx::query(&sql).fetch_all(pool).await {
             if let Err(e) = match r#type {
-                SelectType::Databases => s.send(message::Response::Databases { conn, data: rows }),
+                SelectType::Databases => {
+                    let metas = rows
+                        .iter()
+                        .map(|x| {
+                            let name: String = x.get(0);
+                            (name.clone(), DB { name, tables: None })
+                        })
+                        .collect();
+                    s.send(message::Response::Databases {
+                        conn,
+                        data: Box::new(metas),
+                    })
+                }
                 SelectType::Tables => {
                     tracing::info!("查询数量 {}", rows.len());
+                    let data: Vec<sqls::FieldMeta> = rows.iter().map(|x| x.into()).collect();
+                    tracing::info!("总字段数：{}", data.len());
+                    let mut map: BTreeMap<String, Vec<Field>> = BTreeMap::new();
+                    for row in data.into_iter() {
+                        let table_name = row.table_name.clone();
+                        let table_name = table_name.as_str();
+                        let field = Field {
+                            datatype: row.get_type(),
+                            details: row,
+                        };
+                        if map.contains_key(table_name) {
+                            map.get_mut(table_name).unwrap().push(field);
+                        } else {
+                            map.insert(table_name.to_owned(), vec![field]);
+                        }
+                    }
+                    for (db, fields) in map.iter() {
+                        tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
+                        for field in fields {
+                            tracing::trace!(
+                                "名称： {}  类型：{}",
+                                field.details.column_name,
+                                field.details.column_type,
+                            );
+                        }
+                    }
                     s.send(message::Response::Tables {
                         conn,
                         db: db.unwrap(),
-                        data: rows,
+                        data: Box::new(map),
                     })
                 }
                 SelectType::Table => {

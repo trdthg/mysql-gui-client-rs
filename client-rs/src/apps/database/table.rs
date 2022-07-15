@@ -81,7 +81,6 @@ impl Table {
         tracing::info!("开始渲染表格...");
         if let (Some(fields), Some(datas)) = (&self.fields, &self.datas) {
             tracing::info!("字段数量：{}", fields.len(),);
-            use sqlx::Row;
             let mut tb = TableBuilder::new(ui)
                 .striped(true)
                 .scroll(true)
@@ -130,10 +129,9 @@ impl Table {
                             ui.label((index + 1).to_string());
                         });
                     }
-                    for (i, meta) in datas[index].iter().enumerate() {
+                    for (i, cell) in datas[index].iter().enumerate() {
                         row.col(|ui| {
-                            let data_str = datas[index][i].to_string();
-
+                            let data_str = cell.to_string();
                             let label = Label::new(&data_str).sense(Sense::click());
                             let label = ui.add(label).on_hover_ui(|ui| {
                                 ui.vertical(|ui| {

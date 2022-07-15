@@ -38,15 +38,16 @@ pub struct Conns {
 pub struct Conn {
     pub config: ConnectionConfig,
     pub conn: Option<usize>,
-    pub databases: Option<BTreeMap<String, DB>>,
+    pub databases: Option<Databases>,
 }
 
-type Tables = BTreeMap<String, Vec<Field>>;
+pub type Databases = Box<BTreeMap<String, DB>>;
+pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
 
 #[derive(Clone, Debug)]
 pub struct DB {
-    name: String,
-    tables: Option<Tables>,
+    pub name: String,
+    pub tables: Option<Tables>,
 }
 
 #[derive(Debug, Clone)]
@@ -251,7 +252,6 @@ impl DataBase {
     }
 
     fn handle_sql(&mut self) {
-        use sqlx::Row;
         if let Ok(v) = self.conn_manager.try_recv() {
             match v {
                 message::Response::NewConn {
@@ -275,47 +275,14 @@ impl DataBase {
                 }
                 message::Response::Databases { conn, data } => {
                     tracing::info!("查询所有数据库成功");
-                    let metas = data
-                        .iter()
-                        .map(|x| {
-                            let name: String = x.get(0);
-                            (name.clone(), DB { name, tables: None })
-                        })
-                        .collect();
                     if let Some(conn) = self.get_conn_mut(&conn) {
-                        conn.databases = Some(metas)
+                        conn.databases = Some(data)
                     }
                 }
                 message::Response::Tables { conn, db, data } => {
                     tracing::info!("查询数据表元数据成功！");
-                    let data: Vec<FieldMeta> = data.iter().map(|x| x.into()).collect();
-                    tracing::info!("总字段数：{}", data.len());
-                    let mut map: BTreeMap<String, Vec<Field>> = BTreeMap::new();
-                    for row in data.into_iter() {
-                        let table_name = row.table_name.clone();
-                        let table_name = table_name.as_str();
-                        let field = Field {
-                            datatype: row.get_type(),
-                            details: row,
-                        };
-                        if map.contains_key(table_name) {
-                            map.get_mut(table_name).unwrap().push(field);
-                        } else {
-                            map.insert(table_name.to_owned(), vec![field]);
-                        }
-                    }
-                    for (db, fields) in map.iter() {
-                        tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
-                        for field in fields {
-                            tracing::trace!(
-                                "名称： {}  类型：{}",
-                                field.details.column_name,
-                                field.details.column_type,
-                            );
-                        }
-                    }
                     if let Some(db) = self.get_db_mut(&conn, &db) {
-                        db.tables = Some(map);
+                        db.tables = Some(data);
                     }
                 }
                 message::Response::DataRows {
@@ -326,12 +293,6 @@ impl DataBase {
                 } => {
                     tracing::info!("查询表数据成功！");
                     if let Some(fields) = self.get_fields(&conn, &db, &table) {
-                        // for field in fields.iter() {
-                        //     println!(
-                        //         "{} {}",
-                        //         field.details.column_name, field.details.column_type
-                        //     );
-                        // }
                         tracing::info!("列数：{}", fields.len());
                         let fields = Box::new(fields.to_owned());
                         self.table.update_content(fields, datas);
