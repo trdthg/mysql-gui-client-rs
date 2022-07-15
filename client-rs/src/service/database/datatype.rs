@@ -35,6 +35,7 @@ pub enum DataCell {
     TinyInt(i8),
     // i16
     SmallInt(i16),
+    // MiddleInt(i32),
     // i32
     Integer(i32),
     // i64
@@ -56,6 +57,20 @@ pub enum DataCell {
     DateTime(sqlx::types::chrono::NaiveDateTime),
     TimeStamp(chrono::DateTime<chrono::Utc>),
     Unknown(String),
+    // Null = 0x06,
+    // Year = 0x0d,
+    // Bit = 0x10,
+    // Json = 0xf5,
+    // NewDecimal = 0xf6,
+    // Enum = 0xf7,
+    // Set = 0xf8,
+    // TinyBlob = 0xf9,
+    // MediumBlob = 0xfa,
+    // LongBlob = 0xfb,
+    // Blob = 0xfc,
+    // VarString = 0xfd,
+    // String = 0xfe,
+    // Geometry = 0xff,
 }
 
 impl DataType {

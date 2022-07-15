@@ -85,13 +85,13 @@ impl Server for DatabaseServer {
                     }
                     Message::Select {
                         sql,
-                        key,
+                        conn,
                         db,
                         table,
                         fields,
                         r#type,
                     } => {
-                        handle_select(conns, s, key, db, table, fields, r#type, sql).await;
+                        handle_select(conns, s, conn, db, table, fields, r#type, sql).await;
                     }
                 };
             } else {
@@ -103,7 +103,7 @@ impl Server for DatabaseServer {
 
 async fn handle_connect(conns: CONNS, s: UnboundedSender<D>, config: ConnectionConfig, save: bool) {
     let url = config.get_url();
-    let key = config.get_name();
+    let conn = config.get_name();
     let mut result = None;
     let pool = sqlx::MySqlPool::connect(&url).await;
     match pool {
@@ -112,7 +112,7 @@ async fn handle_connect(conns: CONNS, s: UnboundedSender<D>, config: ConnectionC
         }
         Ok(p) => {
             if save == true {
-                conns.write().await.insert(key, p);
+                conns.write().await.insert(conn, p);
                 result = Some(1);
             }
             tracing::info!("目标数据库连接成功");
@@ -132,44 +132,30 @@ async fn handle_connect(conns: CONNS, s: UnboundedSender<D>, config: ConnectionC
 async fn handle_select(
     conns: CONNS,
     s: UnboundedSender<D>,
-    key: String,
+    conn: String,
     db: Option<String>,
     table: Option<String>,
     fields: Option<Box<Vec<Field>>>,
     r#type: SelectType,
     sql: String,
 ) {
-    let mut conn = conns
-        .read()
-        .await
-        .get(&key)
-        .unwrap()
-        .acquire()
-        .await
-        .unwrap();
-    match r#type {
-        SelectType::Databases => {
-            let rows: Vec<sqlx::mysql::MySqlRow> =
-                sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
-            if let Err(e) = s.send(message::Response::Databases { key, data: rows }) {
-                tracing::error!("返回数据失败：{}", e);
-            }
-        }
-        SelectType::Tables => {
-            let rows: Vec<sqlx::mysql::MySqlRow> =
-                sqlx::query(&sql).fetch_all(&mut conn).await.unwrap();
-            tracing::info!("查询数量 {}", rows.len());
-            if let Err(e) = s.send(message::Response::Tables {
-                key,
-                db: db.unwrap(),
-                data: rows,
-            }) {
-                tracing::error!("返回数据失败：{}", e);
-            }
-        }
-        SelectType::Table => match sqlx::query(&sql).fetch_all(&mut conn).await {
-            Ok(rows) => {
-                if let Some(fields) = fields {
+    if let Some(pool) = conns.read().await.get(&conn) {
+        if let Ok(rows) = sqlx::query(&sql).fetch_all(pool).await {
+            if let Err(e) = match r#type {
+                SelectType::Databases => s.send(message::Response::Databases { conn, data: rows }),
+                SelectType::Tables => {
+                    tracing::info!("查询数量 {}", rows.len());
+                    s.send(message::Response::Tables {
+                        conn,
+                        db: db.unwrap(),
+                        data: rows,
+                    })
+                }
+                SelectType::Table => {
+                    if fields.is_none() || db.is_none() || table.is_none() {
+                        return;
+                    }
+                    let fields = fields.unwrap();
                     let mut datas: Box<Vec<Vec<DataCell>>> =
                         Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
                     for col in 0..fields.len() {
@@ -178,35 +164,44 @@ async fn handle_select(
                             datas[i].push(cell);
                         }
                     }
-                    if let Err(e) = s.send(message::Response::DataRows {
-                        key,
-                        table: table.unwrap(),
+                    s.send(message::Response::DataRows {
+                        conn,
                         db: db.unwrap(),
+                        table: table.unwrap(),
                         datas,
-                    }) {
-                        tracing::error!("返回数据失败：{}", e);
-                    }
+                    })
                 }
+            } {
+                tracing::error!("查询数据失败 {}", e);
             }
-            Err(e) => {
-                tracing::error!("查询失败：{}", e);
-            }
-        },
+        } else {
+            tracing::error!("查询数据失败");
+        }
+    } else {
+        tracing::error!("获取数据库连接失败");
     }
 }
-
 #[cfg(test)]
 mod test {
+
     #[tokio::test]
     async fn it_should_work() {
-        let conn = sqlx::MySqlPool::connect("").await.unwrap();
-        use sqlx::Arguments;
-        let mut args = sqlx::mysql::MySqlArguments::default();
-        args.add(5);
-        args.add("foo");
-        let sql = "insert into abc (a,b) values ($1, $2)";
-        let query = sqlx::query(sql);
-        let mut conn = conn.acquire().await.unwrap();
-        let _: Vec<sqlx::mysql::MySqlRow> = query.fetch_all(&mut conn).await.unwrap();
+        let url = "mysql://tiangong2008:tiangong2008@www.91iedu.com:3391";
+        let conn = sqlx::MySqlPool::connect(url).await.unwrap();
+
+        let sql = "select * from tiangong2008.zqm_musics";
+
+        use sqlx::mysql::MySqlTypeInfo;
+        use sqlx::Column;
+        use sqlx::Row;
+        use sqlx::Type;
+        use sqlx::TypeInfo;
+        let res = sqlx::query(sql).fetch_one(&conn).await.unwrap();
+        let columns = res.columns();
+        for i in 0..columns.len() {
+            let col = columns.get(i).unwrap();
+            let type_info = col.type_info();
+            println!("{:#?} {:#?}", col.name(), type_info.to_string());
+        }
     }
 }

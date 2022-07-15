@@ -36,7 +36,7 @@ pub fn get_table_meta(database_name: &str) -> String {
 }
 
 #[derive(Debug, Clone)]
-pub struct TableMeta {
+pub struct FieldMeta {
     pub table_schema: String,           // 库名
     pub table_name: String,             // 表名
     pub column_name: String,            // 列名
@@ -55,7 +55,7 @@ pub struct TableMeta {
     pub column_comment: Option<String>, //注释
 }
 
-impl TableMeta {
+impl FieldMeta {
     pub fn get_type(&self) -> DataType {
         match self.data_type.as_str() {
             "tinyint" => DataType::TinyInt,
@@ -81,16 +81,16 @@ impl TableMeta {
             "timestamp" => DataType::TimeStamp,
             _ => {
                 tracing::error!("没有实现 {}", self.data_type.as_str());
-                panic!();
+                DataType::Unknown
             }
         }
     }
 }
 
-impl From<&sqlx::mysql::MySqlRow> for TableMeta {
+impl From<&sqlx::mysql::MySqlRow> for FieldMeta {
     fn from(row: &sqlx::mysql::MySqlRow) -> Self {
         use sqlx::Row;
-        TableMeta {
+        Self {
             table_schema: row.get(0),
             table_name: row.get(1),
             column_name: row.get(2),

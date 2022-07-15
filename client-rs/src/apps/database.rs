@@ -12,7 +12,7 @@ use crate::service::{
     database::{
         datatype::{DataCell, DataType},
         message,
-        sqls::{self, TableMeta},
+        sqls::{self, FieldMeta},
     },
     Client,
 };
@@ -52,7 +52,7 @@ pub struct DB {
 #[derive(Debug, Clone)]
 pub struct Field {
     pub datatype: DataType,
-    pub details: TableMeta,
+    pub details: FieldMeta,
 }
 
 impl eframe::App for DataBase {
@@ -92,32 +92,32 @@ impl eframe::App for DataBase {
 }
 
 impl DataBase {
-    pub fn get_conn_mut(&mut self, key: &str) -> Option<&mut Conn> {
-        self.conns.inner.get_mut(key)
+    pub fn get_conn_mut(&mut self, conn: &str) -> Option<&mut Conn> {
+        self.conns.inner.get_mut(conn)
     }
 
-    pub fn get_db_mut(&mut self, key: &str, db: &str) -> Option<&mut DB> {
+    pub fn get_db_mut(&mut self, conn: &str, db: &str) -> Option<&mut DB> {
         self.conns
             .inner
-            .get_mut(key)
+            .get_mut(conn)
             .and_then(|conn| conn.databases.as_mut())
             .and_then(|database| database.get_mut(db))
     }
 
-    pub fn get_db(&self, key: &str, db: &str) -> Option<&DB> {
+    pub fn get_db(&self, conn: &str, db: &str) -> Option<&DB> {
         self.conns
             .inner
-            .get(key)
+            .get(conn)
             .and_then(|conn| conn.databases.as_ref())
             .and_then(|database| database.get(db))
     }
 
-    pub fn get_tables(&self, key: &str, db: &str) -> Option<&Tables> {
-        self.get_db(key, db).and_then(|db| db.tables.as_ref())
+    pub fn get_tables(&self, conn: &str, db: &str) -> Option<&Tables> {
+        self.get_db(conn, db).and_then(|db| db.tables.as_ref())
     }
 
-    pub fn get_fields(&self, key: &str, db: &str, table: &str) -> Option<&Vec<Field>> {
-        self.get_tables(key, db)
+    pub fn get_fields(&self, conn: &str, db: &str, table: &str) -> Option<&Vec<Field>> {
+        self.get_tables(conn, db)
             .and_then(|tables| tables.get(table))
     }
 }
@@ -134,7 +134,7 @@ impl DataBase {
     }
 
     fn render_conn(&self, ui: &mut egui::Ui) {
-        for (key, conn) in self.conns.inner.iter() {
+        for (conn_name, conn) in self.conns.inner.iter() {
             if conn.conn.is_none() {
                 ui.label(format!("{}", conn.config.get_name()));
                 ui.colored_label(Color32::RED, format!("{}", conn.config.get_name()));
@@ -171,12 +171,12 @@ impl DataBase {
                                             });
                                         if table_collapsing.header_response.double_clicked() {
                                             let fields = self
-                                                .get_fields(key, db_name, table_name)
+                                                .get_fields(conn_name, db_name, table_name)
                                                 .and_then(|x| Some(x.to_owned()));
                                             let fields = Some(Box::new(fields.unwrap()));
                                             if let Err(e) =
                                                 self.conn_manager.send(message::Message::Select {
-                                                    key: conn.config.get_name(),
+                                                    conn: conn.config.get_name(),
                                                     db: Some(db_name.to_string()),
                                                     table: Some(table_name.to_string()),
                                                     r#type: message::SelectType::Table,
@@ -204,7 +204,7 @@ impl DataBase {
                             // 数据库被点击时，触发查询所有数据表
                             if db_collapsing.header_response.clicked() && db.tables.is_none() {
                                 if let Err(e) = self.conn_manager.send(message::Message::Select {
-                                    key: conn.config.get_name(),
+                                    conn: conn.config.get_name(),
                                     db: Some(db_name.to_string()),
                                     table: None,
                                     r#type: message::SelectType::Tables,
@@ -222,7 +222,7 @@ impl DataBase {
             // 数据库连接被点击时，触发查询所有连接
             if conn_collapsing.header_response.clicked() && conn.databases.is_none() {
                 if let Err(e) = self.conn_manager.send(message::Message::Select {
-                    key: conn.config.get_name(),
+                    conn: conn.config.get_name(),
                     db: None,
                     table: None,
                     r#type: message::SelectType::Databases,
@@ -273,7 +273,7 @@ impl DataBase {
                     );
                     self.config_new_conn.close();
                 }
-                message::Response::Databases { key, data } => {
+                message::Response::Databases { conn, data } => {
                     tracing::info!("查询所有数据库成功");
                     let metas = data
                         .iter()
@@ -282,13 +282,13 @@ impl DataBase {
                             (name.clone(), DB { name, tables: None })
                         })
                         .collect();
-                    if let Some(conn) = self.get_conn_mut(&key) {
+                    if let Some(conn) = self.get_conn_mut(&conn) {
                         conn.databases = Some(metas)
                     }
                 }
-                message::Response::Tables { key, db, data } => {
+                message::Response::Tables { conn, db, data } => {
                     tracing::info!("查询数据表元数据成功！");
-                    let data: Vec<TableMeta> = data.iter().map(|x| x.into()).collect();
+                    let data: Vec<FieldMeta> = data.iter().map(|x| x.into()).collect();
                     tracing::info!("总字段数：{}", data.len());
                     let mut map: BTreeMap<String, Vec<Field>> = BTreeMap::new();
                     for row in data.into_iter() {
@@ -314,18 +314,18 @@ impl DataBase {
                             );
                         }
                     }
-                    if let Some(db) = self.get_db_mut(&key, &db) {
+                    if let Some(db) = self.get_db_mut(&conn, &db) {
                         db.tables = Some(map);
                     }
                 }
                 message::Response::DataRows {
-                    key,
+                    conn,
                     db,
                     table,
                     datas,
                 } => {
                     tracing::info!("查询表数据成功！");
-                    if let Some(fields) = self.get_fields(&key, &db, &table) {
+                    if let Some(fields) = self.get_fields(&conn, &db, &table) {
                         // for field in fields.iter() {
                         //     println!(
                         //         "{} {}",

@@ -8,7 +8,7 @@ pub enum Message {
         save: bool,
     },
     Select {
-        key: String,
+        conn: String,
         db: Option<String>,
         table: Option<String>,
         fields: Option<Box<Vec<Field>>>,
@@ -30,16 +30,16 @@ pub enum Response {
         result: Option<usize>,
     },
     Databases {
-        key: String,
+        conn: String,
         data: Vec<sqlx::mysql::MySqlRow>,
     },
     Tables {
-        key: String,
+        conn: String,
         db: String,
         data: Vec<sqlx::mysql::MySqlRow>,
     },
     DataRows {
-        key: String,
+        conn: String,
         db: String,
         table: String,
         datas: Box<Vec<Vec<DataCell>>>,
