@@ -1,4 +1,4 @@
-use crate::service::database::datatype::DataType;
+use crate::service::database::datatype::{DataCell, DataType};
 use eframe::{
     egui::{self, Context, Label, RichText, ScrollArea, Sense},
     epaint::Color32,
@@ -10,7 +10,7 @@ use super::Field;
 pub struct Table {
     state: State,
     fields: Option<Box<Vec<Field>>>,
-    datas: Option<Box<Vec<sqlx::mysql::MySqlRow>>>,
+    datas: Option<Box<Vec<Vec<DataCell>>>>,
     count: bool,
     input_cache: Box<Vec<String>>,
 }
@@ -65,11 +65,7 @@ impl eframe::App for Table {
 }
 
 impl Table {
-    pub fn update_content(
-        &mut self,
-        fields: Box<Vec<Field>>,
-        datas: Box<Vec<sqlx::mysql::MySqlRow>>,
-    ) {
+    pub fn update_content(&mut self, fields: Box<Vec<Field>>, datas: Box<Vec<Vec<DataCell>>>) {
         //
         let mut v = Vec::new();
         for _ in 0..fields.len() {
@@ -134,92 +130,9 @@ impl Table {
                             ui.label((index + 1).to_string());
                         });
                     }
-                    for (i, meta) in datas[index].columns().iter().enumerate() {
+                    for (i, meta) in datas[index].iter().enumerate() {
                         row.col(|ui| {
-                            let data_str = match fields[i].datatype {
-                                DataType::TinyInt => {
-                                    let data: i8 = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::SmallInt => {
-                                    let data: i16 = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Integer => {
-                                    let data: i32 = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::BigInt => {
-                                    let data: i64 = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Varchar => {
-                                    let data: String = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Char { .. } => {
-                                    let data: String = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Boolean => {
-                                    let data: bool = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Real => {
-                                    let data: f32 = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Double => {
-                                    let data: f64 = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::Decimal { .. } => {
-                                    let data: Decimal = datas[index].try_get(i).unwrap_or_default();
-                                    data.to_string()
-                                }
-                                DataType::DateTime => {
-                                    let data: Result<
-                                        sqlx::types::chrono::NaiveDateTime,
-                                        sqlx::Error,
-                                    > = datas[index].try_get(i);
-                                    if let Ok(data) = data {
-                                        let data = data.to_string();
-                                        data.to_string()
-                                    } else {
-                                        "日期时间".to_string()
-                                    }
-                                }
-                                DataType::Date => {
-                                    let data: Result<sqlx::types::chrono::NaiveDate, sqlx::Error> =
-                                        datas[index].try_get(i);
-                                    if let Ok(data) = data {
-                                        let data = data.to_string();
-                                        data.to_string()
-                                    } else {
-                                        "日期".to_string()
-                                    }
-                                }
-                                DataType::Time => {
-                                    let data: Result<sqlx::types::chrono::NaiveTime, sqlx::Error> =
-                                        datas[index].try_get(i);
-                                    if let Ok(data) = data {
-                                        let data = data.to_string();
-                                        data.to_string()
-                                    } else {
-                                        "时间".to_string()
-                                    }
-                                }
-                                DataType::TimeStamp => {
-                                    let data: Result<chrono::DateTime<chrono::Utc>, sqlx::Error> =
-                                        datas[index].try_get(i);
-                                    if let Ok(data) = data {
-                                        let data = data.to_string();
-                                        data.to_string()
-                                    } else {
-                                        "时间戳".to_string()
-                                    }
-                                }
-                            };
+                            let data_str = datas[index][i].to_string();
 
                             let label = Label::new(&data_str).sense(Sense::click());
                             let label = ui.add(label).on_hover_ui(|ui| {

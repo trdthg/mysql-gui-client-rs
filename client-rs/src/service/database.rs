@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use sqlx::Row;
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -10,7 +11,10 @@ pub mod entity;
 pub mod message;
 pub mod sqls;
 
+use crate::apps::database::Field;
+
 use self::{
+    datatype::{DataCell, DataType},
     entity::ConnectionConfig,
     message::{Message, Response, SelectType},
 };
@@ -84,9 +88,10 @@ impl Server for DatabaseServer {
                         key,
                         db,
                         table,
+                        fields,
                         r#type,
                     } => {
-                        handle_select(conns, s, key, db, table, r#type, sql).await;
+                        handle_select(conns, s, key, db, table, fields, r#type, sql).await;
                     }
                 };
             } else {
@@ -130,6 +135,7 @@ async fn handle_select(
     key: String,
     db: Option<String>,
     table: Option<String>,
+    fields: Option<Box<Vec<Field>>>,
     r#type: SelectType,
     sql: String,
 ) {
@@ -163,13 +169,23 @@ async fn handle_select(
         }
         SelectType::Table => match sqlx::query(&sql).fetch_all(&mut conn).await {
             Ok(rows) => {
-                if let Err(e) = s.send(message::Response::DataRows {
-                    key,
-                    table: table.unwrap(),
-                    db: db.unwrap(),
-                    data: Box::new(rows),
-                }) {
-                    tracing::error!("返回数据失败：{}", e);
+                if let Some(fields) = fields {
+                    let mut datas: Box<Vec<Vec<DataCell>>> =
+                        Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
+                    for col in 0..fields.len() {
+                        for (i, row) in rows.iter().enumerate() {
+                            let cell = DataCell::from_mysql_row(&row, col, &fields[col]);
+                            datas[i].push(cell);
+                        }
+                    }
+                    if let Err(e) = s.send(message::Response::DataRows {
+                        key,
+                        table: table.unwrap(),
+                        db: db.unwrap(),
+                        datas,
+                    }) {
+                        tracing::error!("返回数据失败：{}", e);
+                    }
                 }
             }
             Err(e) => {

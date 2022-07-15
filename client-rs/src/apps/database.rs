@@ -10,7 +10,7 @@ use eframe::{
 
 use crate::service::{
     database::{
-        datatype::DataType,
+        datatype::{DataCell, DataType},
         message,
         sqls::{self, TableMeta},
     },
@@ -170,6 +170,10 @@ impl DataBase {
                                                 }
                                             });
                                         if table_collapsing.header_response.double_clicked() {
+                                            let fields = self
+                                                .get_fields(key, db_name, table_name)
+                                                .and_then(|x| Some(x.to_owned()));
+                                            let fields = Some(Box::new(fields.unwrap()));
                                             if let Err(e) =
                                                 self.conn_manager.send(message::Message::Select {
                                                     key: conn.config.get_name(),
@@ -177,6 +181,7 @@ impl DataBase {
                                                     table: Some(table_name.to_string()),
                                                     r#type: message::SelectType::Table,
                                                     sql: sqls::get_100_row(db_name, table_name),
+                                                    fields,
                                                 })
                                             {
                                                 tracing::error!("查询数据库失败：{}", e);
@@ -204,6 +209,7 @@ impl DataBase {
                                     table: None,
                                     r#type: message::SelectType::Tables,
                                     sql: sqls::get_table_meta(&db.name),
+                                    fields: None,
                                 }) {
                                     tracing::error!("查询数据库失败：{}", e);
                                 }
@@ -221,6 +227,7 @@ impl DataBase {
                     table: None,
                     r#type: message::SelectType::Databases,
                     sql: sqls::get_databases(),
+                    fields: None,
                 }) {
                     tracing::error!("查询数据库失败：{}", e);
                 }
@@ -315,7 +322,7 @@ impl DataBase {
                     key,
                     db,
                     table,
-                    data,
+                    datas,
                 } => {
                     tracing::info!("查询表数据成功！");
                     if let Some(fields) = self.get_fields(&key, &db, &table) {
@@ -327,7 +334,7 @@ impl DataBase {
                         // }
                         tracing::info!("列数：{}", fields.len());
                         let fields = Box::new(fields.to_owned());
-                        self.table.update_content(fields, data);
+                        self.table.update_content(fields, datas);
                     }
                 }
             }

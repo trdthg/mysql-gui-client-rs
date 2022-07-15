@@ -1,4 +1,6 @@
-use super::entity::ConnectionConfig;
+use crate::apps::database::Field;
+
+use super::{datatype::DataCell, entity::ConnectionConfig};
 
 pub enum Message {
     Connect {
@@ -9,6 +11,7 @@ pub enum Message {
         key: String,
         db: Option<String>,
         table: Option<String>,
+        fields: Option<Box<Vec<Field>>>,
         r#type: SelectType,
         sql: String,
     },
@@ -39,6 +42,6 @@ pub enum Response {
         key: String,
         db: String,
         table: String,
-        data: Box<Vec<sqlx::mysql::MySqlRow>>,
+        datas: Box<Vec<Vec<DataCell>>>,
     },
 }
