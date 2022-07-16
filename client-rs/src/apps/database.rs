@@ -15,13 +15,16 @@ use eframe::{
 };
 use std::collections::BTreeMap;
 use table::Table as TableComponent;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 pub struct DataBase {
     state: String,
     conns: Conns,
     table: TableComponent,
     config_new_conn: config_new_conn::ConfigNewConnWindow,
-    conn_manager: DatabaseClient,
+    // conn_manager: DatabaseClient,
+    s: UnboundedSender<message::Message>,
+    r: UnboundedReceiver<message::Response>,
 }
 
 #[derive(Clone, Debug)]
@@ -41,12 +44,25 @@ pub struct DB {
 
 pub type Databases = Box<BTreeMap<String, DB>>;
 
+// #[derive(Debug, Clone)]
+// pub struct Field {
+//     pub datatype: DataType,
+//     pub details: FieldMeta,
+// }
+
 #[derive(Debug, Clone)]
-pub struct Field {
-    pub datatype: DataType,
-    pub details: FieldMeta,
+pub struct FieldType {
+    pub name: String,
+    pub r#type: DataType,
+    pub column_type: String,
 }
-pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
+impl FieldType {
+    pub fn default_width(&self) -> f32 {
+        self.r#type.get_default_width()
+    }
+}
+
+pub type Tables = Box<BTreeMap<String, Vec<FieldType>>>;
 
 impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -64,7 +80,7 @@ impl eframe::App for DataBase {
                     self.config_new_conn.open();
                 };
             });
-            self.config_new_conn.run(&self.conn_manager, ctx);
+            self.config_new_conn.run(&self.s, ctx);
             self.handle_sql();
             ScrollArea::vertical()
                 .auto_shrink([false; 2])
@@ -107,7 +123,7 @@ impl DataBase {
         self.get_db(conn, db).and_then(|db| db.tables.as_ref())
     }
 
-    pub fn get_fields(&self, conn: &str, db: &str, table: &str) -> Option<&Vec<Field>> {
+    pub fn get_fields(&self, conn: &str, db: &str, table: &str) -> Option<&Vec<FieldType>> {
         self.get_tables(conn, db)
             .and_then(|tables| tables.get(table))
     }
@@ -118,9 +134,11 @@ impl DataBase {
         Self {
             conns: Conns::default(),
             state: "aaa".into(),
-            table: Default::default(),
-            conn_manager,
+            table: TableComponent::new(conn_manager.s.clone()),
+            // conn_manager,
             config_new_conn: config_new_conn::ConfigNewConnWindow::default(),
+            s: conn_manager.s.clone(),
+            r: conn_manager.r,
         }
     }
 
@@ -148,15 +166,10 @@ impl DataBase {
                                                 // 各字段
                                                 for field in table.iter() {
                                                     ui.horizontal(|ui| {
-                                                        if ui
-                                                            .button(&field.details.column_name)
-                                                            .clicked()
-                                                        {
+                                                        if ui.button(&field.name).clicked() {
                                                             //
                                                         }
-                                                        ui.weak(RichText::new(
-                                                            &field.details.column_type,
-                                                        ));
+                                                        ui.weak(RichText::new(&field.column_type));
                                                     });
                                                 }
                                             });
@@ -169,16 +182,16 @@ impl DataBase {
                                                     .get_fields(conn_name, db_name, table_name)
                                                     .and_then(|x| Some(x.to_owned()));
                                                 let fields = Some(Box::new(fields.unwrap()));
-                                                if let Err(e) = self.conn_manager.send(
-                                                    message::Message::Select {
+                                                if let Err(e) =
+                                                    self.s.send(message::Message::Select {
                                                         conn: conn.config.get_name(),
                                                         db: Some(db_name.to_string()),
                                                         table: Some(table_name.to_string()),
                                                         r#type: message::SelectType::Table,
                                                         sql: sqls::get_100_row(db_name, table_name),
                                                         fields,
-                                                    },
-                                                ) {
+                                                    })
+                                                {
                                                     tracing::error!("查询数据表失败：{}", e);
                                                 }
                                             }
@@ -206,16 +219,14 @@ impl DataBase {
                                     ui.vertical_centered_justified(|ui| {
                                         ui.spacing();
                                         if ui.button("刷新").clicked() {
-                                            if let Err(e) =
-                                                self.conn_manager.send(message::Message::Select {
-                                                    conn: conn.config.get_name(),
-                                                    db: Some(db_name.to_string()),
-                                                    table: None,
-                                                    r#type: message::SelectType::Tables,
-                                                    sql: sqls::get_table_meta(&db.name),
-                                                    fields: None,
-                                                })
-                                            {
+                                            if let Err(e) = self.s.send(message::Message::Select {
+                                                conn: conn.config.get_name(),
+                                                db: Some(db_name.to_string()),
+                                                table: None,
+                                                r#type: message::SelectType::Tables,
+                                                sql: sqls::get_table_meta(&db.name),
+                                                fields: None,
+                                            }) {
                                                 tracing::error!("查询数据库失败：{}", e);
                                             }
                                         };
@@ -238,7 +249,7 @@ impl DataBase {
                     ui.vertical_centered_justified(|ui| {
                         ui.spacing();
                         if ui.button("刷新").clicked() {
-                            if let Err(e) = self.conn_manager.send(message::Message::Select {
+                            if let Err(e) = self.s.send(message::Message::Select {
                                 conn: conn.config.get_name(),
                                 db: None,
                                 table: None,
@@ -259,7 +270,7 @@ impl DataBase {
     }
 
     fn handle_sql(&mut self) {
-        if let Ok(v) = self.conn_manager.try_recv() {
+        if let Ok(v) = self.r.try_recv() {
             match v {
                 message::Response::NewConn {
                     config,
@@ -309,11 +320,21 @@ impl DataBase {
                             conn_name: conn,
                             db_name: db,
                             table_name: table,
-                            fields: fields,
-                            datas: datas,
+                            fields,
+                            datas,
                         });
                         self.table.update_content(meta);
                     }
+                }
+                message::Response::Customed { fields, datas } => {
+                    let meta = Box::new(table::TableMeta {
+                        conn_name: "".to_string(),
+                        db_name: "".to_string(),
+                        table_name: "".to_string(),
+                        fields,
+                        datas,
+                    });
+                    self.table.update_content(meta);
                 }
             }
         }

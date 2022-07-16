@@ -2,26 +2,32 @@ use eframe::{
     egui::{self, Context, ScrollArea},
     epaint::Color32,
 };
+use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Conns, Field};
+use crate::service::database::{message, DatabaseClient};
+
+use super::{Conns, FieldType};
 
 pub struct Table {
+    s: UnboundedSender<message::Message>,
     count: bool,
     edit: EditCtl,
     meta: Option<Box<TableMeta>>,
     code_editor: CodeEditor,
 }
 
-impl Default for Table {
-    fn default() -> Self {
+impl Table {
+    pub fn new(s: UnboundedSender<message::Message>) -> Self {
         Self {
             count: true,
             edit: EditCtl::new(),
             meta: None,
             code_editor: CodeEditor::new(),
+            s,
         }
     }
 }
+
 pub struct CodeEditor {
     input: String,
     chosed_conn: Option<String>,
@@ -43,7 +49,7 @@ pub struct TableMeta {
     pub conn_name: String,
     pub db_name: String,
     pub table_name: String,
-    pub fields: Box<Vec<Field>>,
+    pub fields: Box<Vec<FieldType>>,
     pub datas: Box<Vec<Vec<String>>>,
 }
 
@@ -117,6 +123,18 @@ impl eframe::App for Table {
                         });
                     if ui.button("执行").clicked() {
                         //
+                        if let Some(conn) = &self.code_editor.chosed_conn {
+                            if let Err(e) = self.s.send(message::Message::Select {
+                                conn: conn.to_owned(),
+                                db: self.code_editor.chosed_db.to_owned(),
+                                table: None,
+                                fields: None,
+                                r#type: message::SelectType::Customed,
+                                sql: self.code_editor.input.to_owned(),
+                            }) {
+                                tracing::error!("后台服务连接断开：{}", e);
+                            }
+                        }
                     }
                 });
                 egui::ScrollArea::vertical().show(ui, |ui| {
@@ -186,7 +204,7 @@ impl Table {
                 });
             }
             for (i, field) in fields.iter().enumerate() {
-                let init_width = field.datatype.get_default_width();
+                let init_width = field.default_width();
                 if i == col_n - 1 {
                     tb = tb.column(Size::Remainder {
                         range: (init_width * 2., f32::INFINITY),
@@ -206,7 +224,7 @@ impl Table {
                 }
                 for field in fields.iter() {
                     header.col(|ui| {
-                        ui.heading(&field.details.column_name);
+                        ui.heading(&field.name);
                     });
                 }
             });

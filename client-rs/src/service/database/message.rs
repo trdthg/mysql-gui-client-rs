@@ -1,6 +1,6 @@
-use crate::apps::database::{Databases, Field, Tables};
+use crate::apps::database::{Databases, FieldType, Tables};
 
-use super::{datatype::DataCell, entity::ConnectionConfig};
+use super::{datatype::DataType, entity::ConnectionConfig};
 
 pub enum Message {
     Connect {
@@ -11,7 +11,7 @@ pub enum Message {
         conn: String,
         db: Option<String>,
         table: Option<String>,
-        fields: Option<Box<Vec<Field>>>,
+        fields: Option<Box<Vec<FieldType>>>,
         r#type: SelectType,
         sql: String,
     },
@@ -21,6 +21,7 @@ pub enum SelectType {
     Databases,
     Tables,
     Table,
+    Customed,
 }
 
 pub enum Response {
@@ -42,6 +43,10 @@ pub enum Response {
         conn: String,
         db: String,
         table: String,
+        datas: Box<Vec<Vec<String>>>,
+    },
+    Customed {
+        fields: Box<Vec<FieldType>>,
         datas: Box<Vec<Vec<String>>>,
     },
 }

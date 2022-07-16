@@ -2,10 +2,11 @@ use eframe::{
     egui::{Context, Layout, RichText},
     emath::Vec2,
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     apps::database,
-    service::database::{entity::ConnectionConfig, DatabaseClient},
+    service::database::{entity::ConnectionConfig, message, DatabaseClient},
 };
 
 use crate::service::Client;
@@ -17,7 +18,7 @@ pub struct ConfigNewConnWindow {
 }
 
 impl ConfigNewConnWindow {
-    pub fn run(&mut self, conn_manager: &DatabaseClient, ctx: &Context) {
+    pub fn run(&mut self, conn_manager: &UnboundedSender<message::Message>, ctx: &Context) {
         eframe::egui::Window::new("配置新的连接")
             .open(&mut self.tmp_config_open)
             .show(ctx, |ui| {

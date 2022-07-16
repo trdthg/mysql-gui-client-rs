@@ -57,33 +57,7 @@ pub struct FieldMeta {
 
 impl FieldMeta {
     pub fn get_type(&self) -> DataType {
-        match self.data_type.as_str() {
-            "tinyint" => DataType::TinyInt,
-            "smallint" => DataType::SmallInt,
-            "int" => DataType::Integer,
-            "bigint" => DataType::BigInt,
-
-            "float" => DataType::Real,
-            "double" => DataType::Double,
-
-            "varchar" => DataType::Varchar,
-            "char" => DataType::Char {
-                width: self.character_maximum_length.unwrap(),
-            },
-            "decimal" => DataType::Decimal {
-                scale: self.numeric_precision.unwrap(),
-                precision: self.numeric_scale.unwrap(),
-            },
-            "bool" | "bit" => DataType::Boolean,
-            "date" => DataType::Date,
-            "time" => DataType::Time,
-            "datetime" => DataType::DateTime,
-            "timestamp" => DataType::TimeStamp,
-            _ => {
-                tracing::error!("没有实现 {}", self.data_type.as_str());
-                DataType::Unknown
-            }
-        }
+        DataType::from_field(self)
     }
 }
 

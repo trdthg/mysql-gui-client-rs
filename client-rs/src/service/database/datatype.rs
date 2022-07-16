@@ -17,7 +17,7 @@ pub enum DataType {
     // bool
     Boolean,
     // f32
-    Real,
+    Float,
     // f64
     Double,
     // deciml(2,6)
@@ -27,6 +27,7 @@ pub enum DataType {
     DateTime,
     TimeStamp,
     Unknown,
+    Text,
 }
 
 #[derive(Debug, Clone)]
@@ -44,10 +45,11 @@ pub enum DataCell {
     Varchar(String),
     // char(10)
     Char(String),
+    Text(String),
     // bool
     Boolean(bool),
     // f32
-    Real(f32),
+    Float(f32),
     // f64
     Double(f64),
     // deciml(2,6)
@@ -82,8 +84,9 @@ impl DataType {
             DataType::BigInt => 80.,
             DataType::Varchar => 100.,
             DataType::Char { width } => *width as f32 * 10.,
+            DataType::Text => 180.,
             DataType::Boolean => 50.,
-            DataType::Real => 50.,
+            DataType::Float => 50.,
             DataType::Double => 60.,
             DataType::Decimal { scale, precision } => (scale + precision) as f32 * 10.,
             DataType::Date => 80.,
@@ -93,8 +96,120 @@ impl DataType {
             DataType::Unknown => 50.,
         }
     }
+    // |---------------------------------------|------------------------------------------------------|
+    // | `bool`                                | TINYINT(1), BOOLEAN                                  |
+    // | `i8`                                  | TINYINT                                              |
+    // | `i16`                                 | SMALLINT                                             |
+    // | `i32`                                 | INT                                                  |
+    // | `i64`                                 | BIGINT                                               |
+    // | `u8`                                  | TINYINT UNSIGNED                                     |
+    // | `u16`                                 | SMALLINT UNSIGNED                                    |
+    // | `u32`                                 | INT UNSIGNED                                         |
+    // | `u64`                                 | BIGINT UNSIGNED                                      |
+    // | `f32`                                 | FLOAT                                                |
+    // | `f64`                                 | DOUBLE                                               |
+    // | `&str`, [`String`]                    | VARCHAR, CHAR, TEXT                                  |
+    // | `&[u8]`, `Vec<u8>`                    | VARBINARY, BINARY, BLOB                              |
+    // |---------------------------------------|------------------------------------------------------|
+    // | `chrono::DateTime<Utc>`               | TIMESTAMP                                            |
+    // | `chrono::DateTime<Local>`             | TIMESTAMP                                            |
+    // | `chrono::NaiveDateTime`               | DATETIME                                             |
+    // | `chrono::NaiveDate`                   | DATE                                                 |
+    // | `chrono::NaiveTime`                   | TIME                                                 |
+    // |---------------------------------------|------------------------------------------------------|
+    // | `time::PrimitiveDateTime`             | DATETIME                                             |
+    // | `time::OffsetDateTime`                | TIMESTAMP                                            |
+    // | `time::Date`                          | DATE                                                 |
+    // | `time::Time`                          | TIME                                                 |
+    // |---------------------------------------|------------------------------------------------------|
+    // | `rust_decimal::Decimal`               | DECIMAL                                              |
+    // |---------------------------------------|------------------------------------------------------|
+    // | `uuid::Uuid`                          | BYTE(16), VARCHAR, CHAR, TEXT                        |
+    // | `uuid::fmt::Hyphenated`               | CHAR(36)                                             |
+    // |---------------------------------------|------------------------------------------------------|
+    // | `json::JsonValue`             | JSON
+
+    pub(crate) fn from_uppercase(name: &str) -> Self {
+        match name {
+            "BOOLEAN" => DataType::Boolean,
+            "TINYINT" => DataType::TinyInt,
+            "SMALLINT" => DataType::SmallInt,
+            "INT" => DataType::Integer,
+            "BIGINT" => DataType::BigInt,
+            "FLOAT" => DataType::Float,
+            "DOUBLE" => DataType::Double,
+            "CHAR" => DataType::Char { width: 0 },
+            "VARCHAR" => DataType::Varchar,
+            "TEXT" => DataType::Text,
+            "TEXT" => DataType::DateTime,
+            "TEXT" => DataType::Date,
+            "TEXT" => DataType::Time,
+            "TEXT" => DataType::TimeStamp,
+            "DECIMAL" => DataType::Decimal {
+                scale: 0,
+                precision: 0,
+            },
+            _ => DataType::Unknown,
+        }
+    }
+
+    pub(crate) fn from_field(field: &FieldMeta) -> Self {
+        match field.data_type.as_str() {
+            "tinyint" => DataType::TinyInt,
+            "smallint" => DataType::SmallInt,
+            "int" => DataType::Integer,
+            "bigint" => DataType::BigInt,
+
+            "float" => DataType::Float,
+            "double" => DataType::Double,
+
+            "varchar" => DataType::Varchar,
+            "char" => DataType::Char {
+                width: field.character_maximum_length.unwrap(),
+            },
+            "text" => DataType::Text,
+            "decimal" => DataType::Decimal {
+                scale: field.numeric_precision.unwrap(),
+                precision: field.numeric_scale.unwrap(),
+            },
+            "bool" | "bit" => DataType::Boolean,
+            "date" => DataType::Date,
+            "time" => DataType::Time,
+            "datetime" => DataType::DateTime,
+            "timestamp" => DataType::TimeStamp,
+            _ => {
+                tracing::error!("没有实现 {}", field.data_type.as_str());
+                DataType::Unknown
+            }
+        }
+    }
+
+    pub(crate) fn to_string(&self) -> String {
+        match self {
+            DataType::TinyInt => "tinyint".to_string(),
+            DataType::SmallInt => "smallint".to_string(),
+            DataType::Integer => "int".to_string(),
+            DataType::BigInt => "bigint".to_string(),
+
+            DataType::Float => "float".to_string(),
+            DataType::Double => "double".to_string(),
+
+            DataType::Varchar => "varchar".to_string(),
+            DataType::Char { width } => format!("char({})", width),
+            DataType::Text => "text".to_string(),
+            DataType::Decimal { scale, precision } => format!("decimal({}, {})", scale, precision),
+            DataType::Boolean => "bool".to_string(),
+            DataType::Date => "date".to_string(),
+            DataType::Time => "time".to_string(),
+            DataType::DateTime => "datetime".to_string(),
+            DataType::TimeStamp => "timestamp".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
 }
 use sqlx::Row;
+
+use super::sqls::FieldMeta;
 impl DataCell {
     pub fn to_string(&self) -> String {
         match self {
@@ -104,8 +219,9 @@ impl DataCell {
             DataCell::Integer(i) => i.to_string(),
             DataCell::Varchar(i) => i.to_string(),
             DataCell::Char(i) => i.to_string(),
+            DataCell::Text(i) => i.to_string(),
             DataCell::Boolean(i) => i.to_string(),
-            DataCell::Real(i) => i.to_string(),
+            DataCell::Float(i) => i.to_string(),
             DataCell::Double(i) => i.to_string(),
             DataCell::Decimal(i) => i.to_string(),
             DataCell::Date(i) => i.to_string(),
@@ -119,9 +235,9 @@ impl DataCell {
     pub fn from_mysql_row(
         mysql_row: &sqlx::mysql::MySqlRow,
         col: usize,
-        field: &crate::apps::database::Field,
+        field: &DataType,
     ) -> DataCell {
-        let cell = match field.datatype {
+        let cell = match field {
             DataType::TinyInt => {
                 let data: i8 = mysql_row.try_get(col).unwrap_or_default();
                 DataCell::TinyInt(data)
@@ -138,7 +254,7 @@ impl DataCell {
                 let data: i64 = mysql_row.try_get(col).unwrap_or_default();
                 DataCell::BigInt(data)
             }
-            DataType::Varchar => {
+            DataType::Varchar | DataType::Text => {
                 let data: String = mysql_row.try_get(col).unwrap_or_default();
                 DataCell::Varchar(data)
             }
@@ -150,9 +266,9 @@ impl DataCell {
                 let data: bool = mysql_row.try_get(col).unwrap_or_default();
                 DataCell::Boolean(data)
             }
-            DataType::Real => {
+            DataType::Float => {
                 let data: f32 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Real(data)
+                DataCell::Float(data)
             }
             DataType::Double => {
                 let data: f64 = mysql_row.try_get(col).unwrap_or_default();
