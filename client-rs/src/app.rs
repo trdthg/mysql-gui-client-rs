@@ -97,21 +97,22 @@ impl App {
 
                 // 渲染右侧按钮
                 ui.with_layout(Layout::right_to_left(), |ui| {
-                    let close_btn = ui.add(Button::new("✖")); // ✕
+                    let close_btn = ui.add(Button::new("✖")); // ✕ ❌ ✖ ❎ ✅ ✔
                     if close_btn.clicked() {
                         frame.quit();
                     }
                     if ctx.style().visuals.dark_mode {
-                        let theme_btn = ui.add(Button::new("🌙"));
+                        let theme_btn = ui.add(Button::new("🌙")); // 🌛 🌙 ⛭
                         if theme_btn.clicked() {
                             ctx.set_visuals(egui::Visuals::light());
                         }
                     } else {
-                        let theme_btn = ui.add(Button::new("🌞"));
+                        let theme_btn = ui.add(Button::new("🔆")); // ⟳ 🔆 🔅 🌞
                         if theme_btn.clicked() {
                             ctx.set_visuals(egui::Visuals::dark());
                         }
                     }
+
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         let time = chrono::Local::now();
@@ -134,17 +135,17 @@ impl App {
                 &mut self.state.database as &mut dyn eframe::App,
             ),
             (
-                "🖹 文章",
+                "📓 文章",
                 "article",
                 &mut self.state.article as &mut dyn eframe::App,
             ),
             (
-                "🕑 设置",
+                "⛭ 设置", // 齿轮 🔨 🔧
                 "setting",
                 &mut self.state.setting as &mut dyn eframe::App,
             ),
             (
-                "T 测试",
+                "🎮 测试",
                 "test",
                 &mut self.state.test as &mut dyn eframe::App,
             ),

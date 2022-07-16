@@ -74,7 +74,6 @@ impl eframe::App for DataBase {
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
-            
             self.table.update(ctx, frame);
         });
 
@@ -280,12 +279,14 @@ impl DataBase {
                         },
                     );
                     self.config_new_conn.close();
+                    self.table.update_conns(self.conns.clone()); // 更新
                 }
                 message::Response::Databases { conn, data } => {
                     tracing::info!("查询所有数据库成功");
                     if let Some(conn) = self.get_conn_mut(&conn) {
                         conn.databases = Some(data)
                     }
+                    self.table.update_conns(self.conns.clone()); // 更新
                 }
                 message::Response::Tables { conn, db, data } => {
                     tracing::info!("查询数据表元数据成功！");
@@ -303,7 +304,15 @@ impl DataBase {
                     if let Some(fields) = self.get_fields(&conn, &db, &table) {
                         tracing::info!("列数：{}", fields.len());
                         let fields = Box::new(fields.to_owned());
-                        self.table.update_content(fields, datas);
+
+                        let meta = Box::new(table::TableMeta {
+                            conn_name: conn,
+                            db_name: db,
+                            table_name: table,
+                            fields: fields,
+                            datas: datas,
+                        });
+                        self.table.update_content(meta);
                     }
                 }
             }

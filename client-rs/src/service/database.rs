@@ -197,12 +197,12 @@ async fn handle_select(
                         return;
                     }
                     let fields = fields.unwrap();
-                    let mut datas: Box<Vec<Vec<DataCell>>> =
+                    let mut datas: Box<Vec<Vec<String>>> =
                         Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
                     for col in 0..fields.len() {
                         for (i, row) in rows.iter().enumerate() {
                             let cell = DataCell::from_mysql_row(&row, col, &fields[col]);
-                            datas[i].push(cell);
+                            datas[i].push(cell.to_string());
                         }
                     }
                     s.send(message::Response::DataRows {

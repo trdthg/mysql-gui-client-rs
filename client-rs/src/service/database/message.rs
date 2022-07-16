@@ -42,6 +42,6 @@ pub enum Response {
         conn: String,
         db: String,
         table: String,
-        datas: Box<Vec<Vec<DataCell>>>,
+        datas: Box<Vec<Vec<String>>>,
     },
 }

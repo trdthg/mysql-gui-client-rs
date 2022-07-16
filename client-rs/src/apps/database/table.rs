@@ -1,47 +1,142 @@
-use crate::service::database::datatype::{DataCell, DataType};
 use eframe::{
-    egui::{self, Context, Label, RichText, ScrollArea, Sense},
+    egui::{self, Context, ScrollArea},
     epaint::Color32,
 };
-use rust_decimal::Decimal;
 
-use super::Field;
+use super::{Conns, Field};
 
 pub struct Table {
-    state: State,
-    fields: Option<Box<Vec<Field>>>,
-    datas: Option<Box<Vec<Vec<DataCell>>>>,
     count: bool,
-    input_cache: Box<Vec<String>>,
-}
-#[derive(PartialEq)]
-enum State {
-    None,
-    Watch,
-    Insert,
-    Refresh,
-    Commit,
+    edit: EditCtl,
+    meta: Option<Box<TableMeta>>,
+    code_editor: CodeEditor,
 }
 
 impl Default for Table {
     fn default() -> Self {
         Self {
-            state: State::None,
-            fields: None,
-            datas: None,
             count: true,
-            input_cache: Box::new(vec![]),
+            edit: EditCtl::new(),
+            meta: None,
+            code_editor: CodeEditor::new(),
+        }
+    }
+}
+pub struct CodeEditor {
+    input: String,
+    chosed_conn: Option<String>,
+    chosed_db: Option<String>,
+    tree: Option<Conns>,
+}
+impl CodeEditor {
+    pub fn new() -> Self {
+        Self {
+            input: String::new(),
+            chosed_conn: None,
+            chosed_db: None,
+            tree: None,
+        }
+    }
+}
+
+pub struct TableMeta {
+    pub conn_name: String,
+    pub db_name: String,
+    pub table_name: String,
+    pub fields: Box<Vec<Field>>,
+    pub datas: Box<Vec<Vec<String>>>,
+}
+
+struct EditCtl {
+    input_caches: Box<Vec<String>>,
+    selected_cell: Option<usize>,
+    input_cache: String,
+}
+
+impl EditCtl {
+    pub fn new() -> Self {
+        Self {
+            input_caches: Box::new(vec![]),
+            selected_cell: None,
+            input_cache: String::new(),
         }
     }
 }
 
 impl eframe::App for Table {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
-        egui::panel::TopBottomPanel::top("表管理 top").show(ctx, |ui| {
+        egui::panel::TopBottomPanel::top("表管理 top")
+            .resizable(true)
+            .show(ctx, |ui| {
+                egui::menu::bar(ui, |ui| {
+                    let current_conn = ui.label("连接");
+
+                    egui::ComboBox::from_id_source(current_conn.id)
+                        .selected_text(match &self.code_editor.chosed_conn {
+                            Some(conn) => conn.as_str(),
+                            None => "None",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.code_editor.chosed_conn, None, "None");
+                            if let Some(tree) = &self.code_editor.tree {
+                                for conn in tree.keys() {
+                                    ui.selectable_value(
+                                        &mut self.code_editor.chosed_conn,
+                                        Some(conn.to_string()),
+                                        conn,
+                                    );
+                                }
+                            }
+                        });
+
+                    let current_db = ui.label("数据库");
+                    egui::ComboBox::from_id_source(current_db.id)
+                        .selected_text(match &self.code_editor.chosed_db {
+                            Some(db_name) => db_name.as_str(),
+                            None => "None",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.code_editor.chosed_db, None, "None");
+                            let chosed_conn =
+                                self.code_editor.chosed_conn.to_owned().unwrap_or_default();
+                            if let Some(dbs) = self
+                                .code_editor
+                                .tree
+                                .as_ref()
+                                .and_then(|tree| tree.get(&chosed_conn))
+                                .and_then(|conn| conn.databases.as_ref())
+                            {
+                                for db in dbs.keys() {
+                                    ui.selectable_value(
+                                        &mut self.code_editor.chosed_db,
+                                        Some(db.to_string()),
+                                        db,
+                                    );
+                                }
+                            }
+                        });
+                    if ui.button("执行").clicked() {
+                        //
+                    }
+                });
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.code_editor.input)
+                            .desired_width(f32::INFINITY)
+                            .code_editor(),
+                    )
+                });
+            });
+
+        egui::panel::CentralPanel::default().show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.selectable_value(&mut self.state, State::Insert, "新增");
-                ui.selectable_value(&mut self.state, State::Refresh, "刷新");
-                ui.selectable_value(&mut self.state, State::Commit, "提交");
+                if ui.button("新增").clicked() {};
+                if ui.button("删除").clicked() {};
+                if ui.button("刷新").clicked() {};
+            });
+            ui.separator();
+            ScrollArea::horizontal().show(ui, |ui| {
+                self.show_content(ui, ctx);
             });
         });
 
@@ -55,31 +150,27 @@ impl eframe::App for Table {
                 });
             });
         });
-
-        egui::panel::CentralPanel::default().show(ctx, |ui| {
-            ScrollArea::horizontal().show(ui, |ui| {
-                self.show_content(ui, ctx);
-            });
-        });
     }
 }
 
 impl Table {
-    pub fn update_content(&mut self, fields: Box<Vec<Field>>, datas: Box<Vec<Vec<DataCell>>>) {
-        //
-        let mut v = Vec::new();
-        for _ in 0..fields.len() {
-            v.push(String::new())
-        }
-        self.input_cache = Box::new(v);
-        self.fields = Some(fields);
-        self.datas = Some(datas);
+    pub fn update_content(&mut self, meta: Box<TableMeta>) {
+        self.meta = Some(meta);
+    }
+
+    pub fn update_conns(&mut self, conns: Conns) {
+        self.code_editor.tree = Some(conns);
     }
 
     pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
         use egui_extras::{Size, TableBuilder};
         tracing::info!("开始渲染表格...");
-        if let (Some(fields), Some(datas)) = (&self.fields, &self.datas) {
+        if let Some(meta) = &self.meta {
+            let fields = &meta.fields;
+            let datas = &meta.datas;
+            let row_n = datas.len();
+            let col_n = fields.len();
+
             tracing::info!("字段数量：{}", fields.len(),);
             let mut tb = TableBuilder::new(ui)
                 .striped(true)
@@ -96,7 +187,7 @@ impl Table {
             }
             for (i, field) in fields.iter().enumerate() {
                 let init_width = field.datatype.get_default_width();
-                if i == fields.len() - 1 {
+                if i == col_n - 1 {
                     tb = tb.column(Size::Remainder {
                         range: (init_width * 2., f32::INFINITY),
                     });
@@ -110,7 +201,7 @@ impl Table {
             let tb = tb.header(20.0, |mut header| {
                 if self.count {
                     header.col(|ui| {
-                        ui.colored_label(Color32::DARK_GRAY, "");
+                        ui.colored_label(Color32::DARK_GRAY, "多选");
                     });
                 }
                 for field in fields.iter() {
@@ -123,39 +214,47 @@ impl Table {
             tb.body(|body| {
                 let height = 18.0 * 2.;
                 // 一次添加所有行 (相同高度)（效率最高）
-                body.rows(height, datas.len(), |index, mut row| {
+                body.rows(height, row_n, |index, mut row| {
                     if self.count {
                         row.col(|ui| {
-                            ui.label((index + 1).to_string());
+                            ui.label(
+                                egui::RichText::new((index + 1).to_string())
+                                    .color(Color32::DARK_GREEN),
+                            );
                         });
                     }
                     for (i, cell) in datas[index].iter().enumerate() {
                         row.col(|ui| {
-                            let data_str = cell.to_string();
+                            let data_str = cell.as_str();
+                            let current_cell_id = index * col_n + i;
+                            if self.edit.selected_cell == Some(current_cell_id) {
+                                let response = ui.text_edit_singleline(&mut self.edit.input_cache);
+                                if response.lost_focus() {
+                                    // self.edit.selected_cell = None;
+                                }
+                                if response.clicked_elsewhere() {
+                                    self.edit.selected_cell = None;
+                                }
+                            } else {
+                                let button = egui::Button::new(
+                                    egui::RichText::new(data_str), // .font(self.font_id.clone()),
+                                )
+                                .frame(false);
 
-                            let button = egui::Button::new(
-                                egui::RichText::new(data_str.as_str()), // .font(self.font_id.clone()),
-                            )
-                            .frame(false);
+                                let tooltip_ui = |ui: &mut egui::Ui| {
+                                    ui.label(egui::RichText::new(data_str)); // .font(self.font_id.clone()));
+                                    ui.label(format!("\n\nClick to copy"));
+                                };
 
-                            // let button = ui.text_edit_singleline(data_str)
-
-                            let tooltip_ui = |ui: &mut egui::Ui| {
-                                ui.label(egui::RichText::new(data_str.as_str())); // .font(self.font_id.clone()));
-                                ui.label(format!("\n\nClick to copy"));
-                            };
-
-                            let response = ui.add(button).on_hover_ui(tooltip_ui);
-                            if response.clicked() {
-                                ui.output().copied_text = data_str;
+                                let response = ui.add(button).on_hover_ui(tooltip_ui);
+                                if response.clicked() {
+                                    ui.output().copied_text = data_str.to_string();
+                                }
+                                if response.double_clicked() {
+                                    self.edit.selected_cell = Some(current_cell_id);
+                                    self.edit.input_cache = data_str.to_string();
+                                }
                             }
-
-                            // response.context_menu(|ui| {
-                            //     ui.vertical(|ui| {
-                            //         ui.label("编辑");
-                            //         ui.text_edit_singleline(&mut self.input_cache[i]);
-                            //     });
-                            // });
                         });
                     }
                 });

@@ -14,10 +14,8 @@ impl eframe::App for Article {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::panel::TopBottomPanel::top("数据库管理 top").show(ctx, |ui| {
             self.render_header(ui);
-
             // egui::menu::bar(ui, |ui| {
-            //     ui.selectable_value(&mut self.state, "".to_string(), "数据管理");
-            //     ui.selectable_value(&mut self.state, "".to_string(), "监控");
+            //     ui.selectable_value(&mut self.state, "".to_string(), "收藏夹");
             // });
         });
 
