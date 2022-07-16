@@ -1,25 +1,20 @@
 mod config_new_conn;
 mod table;
-
-use std::collections::BTreeMap;
-
-use eframe::{
-    egui::{self, RichText, ScrollArea},
-    epaint::Color32,
-};
-
+use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
 use crate::service::{
     database::{
-        datatype::{DataCell, DataType},
+        datatype::DataType,
         message,
         sqls::{self, FieldMeta},
     },
     Client,
 };
-
+use eframe::{
+    egui::{self, RichText, ScrollArea},
+    epaint::Color32,
+};
+use std::collections::BTreeMap;
 use table::Table as TableComponent;
-
-use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
 
 pub struct DataBase {
     state: String,
@@ -29,11 +24,6 @@ pub struct DataBase {
     conn_manager: DatabaseClient,
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Conns {
-    pub inner: Box<BTreeMap<String, Conn>>,
-}
-
 #[derive(Clone, Debug)]
 pub struct Conn {
     pub config: ConnectionConfig,
@@ -41,8 +31,7 @@ pub struct Conn {
     pub databases: Option<Databases>,
 }
 
-pub type Databases = Box<BTreeMap<String, DB>>;
-pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
+pub type Conns = Box<BTreeMap<String, Conn>>;
 
 #[derive(Clone, Debug)]
 pub struct DB {
@@ -50,11 +39,14 @@ pub struct DB {
     pub tables: Option<Tables>,
 }
 
+pub type Databases = Box<BTreeMap<String, DB>>;
+
 #[derive(Debug, Clone)]
 pub struct Field {
     pub datatype: DataType,
     pub details: FieldMeta,
 }
+pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
 
 impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -82,6 +74,7 @@ impl eframe::App for DataBase {
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
+            
             self.table.update(ctx, frame);
         });
 
@@ -94,12 +87,11 @@ impl eframe::App for DataBase {
 
 impl DataBase {
     pub fn get_conn_mut(&mut self, conn: &str) -> Option<&mut Conn> {
-        self.conns.inner.get_mut(conn)
+        self.conns.get_mut(conn)
     }
 
     pub fn get_db_mut(&mut self, conn: &str, db: &str) -> Option<&mut DB> {
         self.conns
-            .inner
             .get_mut(conn)
             .and_then(|conn| conn.databases.as_mut())
             .and_then(|database| database.get_mut(db))
@@ -107,7 +99,6 @@ impl DataBase {
 
     pub fn get_db(&self, conn: &str, db: &str) -> Option<&DB> {
         self.conns
-            .inner
             .get(conn)
             .and_then(|conn| conn.databases.as_ref())
             .and_then(|database| database.get(db))
@@ -135,7 +126,7 @@ impl DataBase {
     }
 
     fn render_conn(&self, ui: &mut egui::Ui) {
-        for (conn_name, conn) in self.conns.inner.iter() {
+        for (conn_name, conn) in self.conns.iter() {
             if conn.conn.is_none() {
                 ui.label(format!("{}", conn.config.get_name()));
                 ui.colored_label(Color32::RED, format!("{}", conn.config.get_name()));
@@ -170,24 +161,29 @@ impl DataBase {
                                                     });
                                                 }
                                             });
-                                        if table_collapsing.header_response.double_clicked() {
-                                            let fields = self
-                                                .get_fields(conn_name, db_name, table_name)
-                                                .and_then(|x| Some(x.to_owned()));
-                                            let fields = Some(Box::new(fields.unwrap()));
-                                            if let Err(e) =
-                                                self.conn_manager.send(message::Message::Select {
-                                                    conn: conn.config.get_name(),
-                                                    db: Some(db_name.to_string()),
-                                                    table: Some(table_name.to_string()),
-                                                    r#type: message::SelectType::Table,
-                                                    sql: sqls::get_100_row(db_name, table_name),
-                                                    fields,
-                                                })
-                                            {
-                                                tracing::error!("查询数据库失败：{}", e);
+                                        // if table_collapsing.header_response.double_clicked() {
+
+                                        // }
+                                        table_collapsing.header_response.context_menu(|ui| {
+                                            if ui.button("刷新").clicked() {
+                                                let fields = self
+                                                    .get_fields(conn_name, db_name, table_name)
+                                                    .and_then(|x| Some(x.to_owned()));
+                                                let fields = Some(Box::new(fields.unwrap()));
+                                                if let Err(e) = self.conn_manager.send(
+                                                    message::Message::Select {
+                                                        conn: conn.config.get_name(),
+                                                        db: Some(db_name.to_string()),
+                                                        table: Some(table_name.to_string()),
+                                                        r#type: message::SelectType::Table,
+                                                        sql: sqls::get_100_row(db_name, table_name),
+                                                        fields,
+                                                    },
+                                                ) {
+                                                    tracing::error!("查询数据表失败：{}", e);
+                                                }
                                             }
-                                        }
+                                        });
                                     }
                                 }
                                 ui.collapsing("其他", |ui| {
@@ -202,48 +198,60 @@ impl DataBase {
                                 });
                             });
 
-                            // 数据库被点击时，触发查询所有数据表
-                            if db_collapsing.header_response.clicked() && db.tables.is_none() {
-                                if let Err(e) = self.conn_manager.send(message::Message::Select {
-                                    conn: conn.config.get_name(),
-                                    db: Some(db_name.to_string()),
-                                    table: None,
-                                    r#type: message::SelectType::Tables,
-                                    sql: sqls::get_table_meta(&db.name),
-                                    fields: None,
-                                }) {
-                                    tracing::error!("查询数据库失败：{}", e);
-                                }
-                            }
+                            // 初始时，自动查询所有数据表（如果没查到，不应该继续）
+                            // if init == true {
+
+                            // }
+                            db_collapsing.header_response.context_menu(|ui| {
+                                egui::menu::bar(ui, |ui| {
+                                    ui.vertical_centered_justified(|ui| {
+                                        ui.spacing();
+                                        if ui.button("刷新").clicked() {
+                                            if let Err(e) =
+                                                self.conn_manager.send(message::Message::Select {
+                                                    conn: conn.config.get_name(),
+                                                    db: Some(db_name.to_string()),
+                                                    table: None,
+                                                    r#type: message::SelectType::Tables,
+                                                    sql: sqls::get_table_meta(&db.name),
+                                                    fields: None,
+                                                })
+                                            {
+                                                tracing::error!("查询数据库失败：{}", e);
+                                            }
+                                        };
+                                        ui.separator();
+                                        if ui.button("删除").clicked() {};
+                                    });
+                                });
+                            });
                         }
                     }
                 },
             );
 
             // 数据库连接被点击时，触发查询所有连接
-            if conn_collapsing.header_response.clicked() && conn.databases.is_none() {
-                if let Err(e) = self.conn_manager.send(message::Message::Select {
-                    conn: conn.config.get_name(),
-                    db: None,
-                    table: None,
-                    r#type: message::SelectType::Databases,
-                    sql: sqls::get_databases(),
-                    fields: None,
-                }) {
-                    tracing::error!("查询数据库失败：{}", e);
-                }
-            }
+            // if conn_collapsing.header_response.clicked() && conn.databases.is_none() {}
 
             // if res.header_response.secondary_clicked() {
             conn_collapsing.header_response.context_menu(|ui| {
                 egui::menu::bar(ui, |ui| {
                     ui.vertical_centered_justified(|ui| {
                         ui.spacing();
-                        if ui.button("查看详细信息").clicked() {};
+                        if ui.button("刷新").clicked() {
+                            if let Err(e) = self.conn_manager.send(message::Message::Select {
+                                conn: conn.config.get_name(),
+                                db: None,
+                                table: None,
+                                r#type: message::SelectType::Databases,
+                                sql: sqls::get_databases(),
+                                fields: None,
+                            }) {
+                                tracing::error!("查询数据库失败：{}", e);
+                            }
+                        };
                         ui.separator();
-                        if ui.button("删除链接").clicked() {};
-                        ui.separator();
-                        if ui.button("测试文本长度度的点点滴滴的点点滴滴的点点滴滴的点点滴滴的点点滴滴单打独斗").clicked() {};
+                        if ui.button("删除").clicked() {};
                     });
                 });
             });
@@ -263,7 +271,7 @@ impl DataBase {
                     if save == false {
                         return;
                     }
-                    self.conns.inner.insert(
+                    self.conns.insert(
                         config.get_name(),
                         Conn {
                             config,

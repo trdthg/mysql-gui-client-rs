@@ -132,27 +132,30 @@ impl Table {
                     for (i, cell) in datas[index].iter().enumerate() {
                         row.col(|ui| {
                             let data_str = cell.to_string();
-                            let label = Label::new(&data_str).sense(Sense::click());
-                            let label = ui.add(label).on_hover_ui(|ui| {
-                                ui.vertical(|ui| {
-                                    ui.small("点击复制");
-                                    ui.label(&data_str);
-                                });
-                            });
-                            if label.clicked() {
-                                ui.output().copied_text = data_str.to_owned();
+
+                            let button = egui::Button::new(
+                                egui::RichText::new(data_str.as_str()), // .font(self.font_id.clone()),
+                            )
+                            .frame(false);
+
+                            // let button = ui.text_edit_singleline(data_str)
+
+                            let tooltip_ui = |ui: &mut egui::Ui| {
+                                ui.label(egui::RichText::new(data_str.as_str())); // .font(self.font_id.clone()));
+                                ui.label(format!("\n\nClick to copy"));
+                            };
+
+                            let response = ui.add(button).on_hover_ui(tooltip_ui);
+                            if response.clicked() {
+                                ui.output().copied_text = data_str;
                             }
 
-                            if label.secondary_clicked() {
-                                self.input_cache[i] = data_str.to_owned();
-                            }
-
-                            label.context_menu(|ui| {
-                                ui.vertical(|ui| {
-                                    ui.label("编辑");
-                                    ui.text_edit_singleline(&mut self.input_cache[i]);
-                                });
-                            });
+                            // response.context_menu(|ui| {
+                            //     ui.vertical(|ui| {
+                            //         ui.label("编辑");
+                            //         ui.text_edit_singleline(&mut self.input_cache[i]);
+                            //     });
+                            // });
                         });
                     }
                 });
@@ -176,7 +179,7 @@ impl Table {
                 // }
             });
         } else {
-            ui.centered_and_justified(|ui| ui.spinner());
+            ui.centered_and_justified(|ui| ui.label("Loading..."));
         }
     }
 }
