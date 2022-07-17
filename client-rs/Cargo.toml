@@ -5,12 +5,6 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[env]
-DATABASE_URL = ""
-
 [dependencies]
 eframe = { version = "0.18", features = ["persistence"] }
 egui_extras = { version = "0.18", features = ["serde"] }
@@ -32,18 +26,6 @@ chrono = "0.4"
 confy = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
 ureq = { version = "2.4", features = ["json"] }
-
-# web:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.6"
-tracing-wasm = "0.2"
-gloo-timers = "0.2.4"
-reqwasm = "0.5"
-wasm-bindgen-futures = "0.4.30"
-
-js-sys = "0.3"
-wasm-bindgen = "0.2"
-
 
 [profile.release]
 code-units = 1

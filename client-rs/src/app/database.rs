@@ -51,18 +51,18 @@ pub type Databases = Box<BTreeMap<String, DB>>;
 // }
 
 #[derive(Debug, Clone)]
-pub struct FieldType {
+pub struct Field {
     pub name: String,
     pub r#type: DataType,
     pub column_type: String,
 }
-impl FieldType {
+impl Field {
     pub fn default_width(&self) -> f32 {
         self.r#type.get_default_width()
     }
 }
 
-pub type Tables = Box<BTreeMap<String, Vec<FieldType>>>;
+pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
 
 impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -123,7 +123,7 @@ impl DataBase {
         self.get_db(conn, db).and_then(|db| db.tables.as_ref())
     }
 
-    pub fn get_fields(&self, conn: &str, db: &str, table: &str) -> Option<&Vec<FieldType>> {
+    pub fn get_fields(&self, conn: &str, db: &str, table: &str) -> Option<&Vec<Field>> {
         self.get_tables(conn, db)
             .and_then(|tables| tables.get(table))
     }
@@ -142,7 +142,7 @@ impl DataBase {
         }
     }
 
-    fn render_conn(&self, ui: &mut egui::Ui) {
+    fn render_conn(&mut self, ui: &mut egui::Ui) {
         for (conn_name, conn) in self.conns.iter() {
             if conn.conn.is_none() {
                 ui.label(format!("{}", conn.config.get_name()));
@@ -178,10 +178,11 @@ impl DataBase {
                                         // }
                                         table_collapsing.header_response.context_menu(|ui| {
                                             if ui.button("刷新").clicked() {
-                                                let fields = self
+                                                let fields = &self
                                                     .get_fields(conn_name, db_name, table_name)
                                                     .and_then(|x| Some(x.to_owned()));
-                                                let fields = Some(Box::new(fields.unwrap()));
+                                                let fields =
+                                                    Some(Box::new(fields.to_owned().unwrap()));
                                                 if let Err(e) =
                                                     self.s.send(message::Message::Select {
                                                         conn: conn.config.get_name(),
@@ -214,17 +215,19 @@ impl DataBase {
                             // if init == true {
 
                             // }
+
                             db_collapsing.header_response.context_menu(|ui| {
                                 egui::menu::bar(ui, |ui| {
                                     ui.vertical_centered_justified(|ui| {
                                         ui.spacing();
                                         if ui.button("刷新").clicked() {
+                                            let sql = sqls::get_table_meta(&db.name);
                                             if let Err(e) = self.s.send(message::Message::Select {
                                                 conn: conn.config.get_name(),
                                                 db: Some(db_name.to_string()),
                                                 table: None,
                                                 r#type: message::SelectType::Tables,
-                                                sql: sqls::get_table_meta(&db.name),
+                                                sql,
                                                 fields: None,
                                             }) {
                                                 tracing::error!("查询数据库失败：{}", e);
@@ -334,6 +337,7 @@ impl DataBase {
                         fields,
                         datas,
                     });
+                    // self.table.update_sql(&sql);
                     self.table.update_content(meta);
                 }
             }

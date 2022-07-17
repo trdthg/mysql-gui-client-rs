@@ -1,4 +1,4 @@
-use crate::apps::database::{Databases, FieldType, Tables};
+use crate::app::database::{Databases, Field, Tables};
 
 use super::{datatype::DataType, entity::ConnectionConfig};
 
@@ -11,7 +11,7 @@ pub enum Message {
         conn: String,
         db: Option<String>,
         table: Option<String>,
-        fields: Option<Box<Vec<FieldType>>>,
+        fields: Option<Box<Vec<Field>>>,
         r#type: SelectType,
         sql: String,
     },
@@ -46,7 +46,7 @@ pub enum Response {
         datas: Box<Vec<Vec<String>>>,
     },
     Customed {
-        fields: Box<Vec<FieldType>>,
+        fields: Box<Vec<Field>>,
         datas: Box<Vec<Vec<String>>>,
     },
 }

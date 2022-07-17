@@ -1,10 +1,14 @@
 use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
+mod article;
+mod component;
+pub mod database;
+mod setting;
+mod talk;
+mod test;
 
-use crate::{
-    apps::{database::DataBase, Article, Setting, Test},
-    config::Config,
-    service::Repo,
-};
+use crate::{config::Config, service::Repo};
+
+use self::{article::Article, database::DataBase, setting::Setting, test::Test};
 
 pub struct State {
     article: Article,
@@ -18,7 +22,7 @@ impl State {
     pub fn new(repo: Repo) -> Self {
         let database = DataBase::new(repo.conn_manager);
         let article = Article::new(repo.article);
-        let setting = Setting::default();
+        let setting = Setting::new(Config::new());
         let test = Default::default();
         Self {
             article,
@@ -38,17 +42,9 @@ pub struct App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         tracing::trace!("更新配置");
-        // ctx.set_debug_on_hover(true);
+        // 初始化作用
         self.config.update(ctx);
-        // if !self.config.api_key_setted {
-        //     self.render_config(ctx);
-        //     return;
-        // }
-
-        if self.state.selected.is_empty() {
-            let selected_anchor = self.apps_iter_mut().next().unwrap().0.to_owned();
-            self.state.selected = selected_anchor;
-        }
+        // ctx.set_debug_on_hover(true);
 
         tracing::trace!("渲染 Top");
         self.render_top_panel(ctx, frame);

@@ -4,9 +4,9 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::service::database::{message, DatabaseClient};
+use crate::service::database::message;
 
-use super::{Conns, FieldType};
+use super::{Conns, Field};
 
 pub struct Table {
     s: UnboundedSender<message::Message>,
@@ -25,6 +25,10 @@ impl Table {
             code_editor: CodeEditor::new(),
             s,
         }
+    }
+
+    pub fn update_sql(&mut self, sql: &str) {
+        self.code_editor.input = sql.to_owned()
     }
 }
 
@@ -49,7 +53,7 @@ pub struct TableMeta {
     pub conn_name: String,
     pub db_name: String,
     pub table_name: String,
-    pub fields: Box<Vec<FieldType>>,
+    pub fields: Box<Vec<Field>>,
     pub datas: Box<Vec<Vec<String>>>,
 }
 
@@ -121,8 +125,8 @@ impl eframe::App for Table {
                                 }
                             }
                         });
-                    if ui.button("执行").clicked() {
-                        //
+                    if ui.button("执行 ▶").clicked() {
+                        // ◀
                         if let Some(conn) = &self.code_editor.chosed_conn {
                             if let Err(e) = self.s.send(message::Message::Select {
                                 conn: conn.to_owned(),
@@ -182,21 +186,21 @@ impl Table {
 
     pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
         use egui_extras::{Size, TableBuilder};
-        tracing::info!("开始渲染表格...");
+        // tracing::info!("开始渲染表格...");
         if let Some(meta) = &self.meta {
             let fields = &meta.fields;
             let datas = &meta.datas;
             let row_n = datas.len();
             let col_n = fields.len();
 
-            tracing::info!("字段数量：{}", fields.len(),);
+            // tracing::info!("字段数量：{}", fields.len(),);
             let mut tb = TableBuilder::new(ui)
                 .striped(true)
                 .scroll(true)
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .resizable(true);
 
-            tracing::info!("设置列数列宽...");
+            // tracing::info!("设置列数列宽...");
             if self.count {
                 tb = tb.column(Size::Absolute {
                     initial: 20.,
@@ -215,11 +219,11 @@ impl Table {
                 }
             }
 
-            tracing::info!("构造 header...");
+            // tracing::info!("构造 header...");
             let tb = tb.header(20.0, |mut header| {
                 if self.count {
                     header.col(|ui| {
-                        ui.colored_label(Color32::DARK_GRAY, "多选");
+                        ui.colored_label(Color32::DARK_GRAY, "");
                     });
                 }
                 for field in fields.iter() {
@@ -228,7 +232,7 @@ impl Table {
                     });
                 }
             });
-            tracing::info!("构造 body...");
+            // tracing::info!("构造 body...");
             tb.body(|body| {
                 let height = 18.0 * 2.;
                 // 一次添加所有行 (相同高度)（效率最高）
