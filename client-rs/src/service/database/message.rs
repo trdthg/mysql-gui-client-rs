@@ -42,6 +42,7 @@ pub enum Response {
     DataRows {
         conn: String,
         db: String,
+        sql: String,
         table: String,
         datas: Box<Vec<Vec<String>>>,
     },

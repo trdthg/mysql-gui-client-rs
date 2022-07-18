@@ -6,32 +6,31 @@ pub fn get_databases() -> String {
 
 pub fn get_table_meta(database_name: &str) -> String {
     format!(
-        r#"
-    SELECT
-        TABLE_SCHEMA , -- 库名
-        TABLE_NAME , -- 表名
-        COLUMN_NAME , -- 列名
-        ORDINAL_POSITION , -- 列的排列顺序
-        COLUMN_DEFAULT , -- 默认值
+        r#"SELECT
+    TABLE_SCHEMA , -- 库名
+    TABLE_NAME , -- 表名
+    COLUMN_NAME , -- 列名
+    ORDINAL_POSITION , -- 列的排列顺序
+    COLUMN_DEFAULT , -- 默认值
 
-        IS_NULLABLE , -- 是否为空
-        DATA_TYPE , -- 数据类型
-        COLUMN_TYPE , -- 列类型
-        CHARACTER_MAXIMUM_LENGTH , -- 字符最大长度
-        NUMERIC_PRECISION , -- 数值精度 (最大位数)
+    IS_NULLABLE , -- 是否为空
+    DATA_TYPE , -- 数据类型
+    COLUMN_TYPE , -- 列类型
+    CHARACTER_MAXIMUM_LENGTH , -- 字符最大长度
+    NUMERIC_PRECISION , -- 数值精度 (最大位数)
 
-        NUMERIC_SCALE , -- 小数精度
-        COLUMN_KEY, -- 'KEY'
-        EXTRA , -- 额外说明
-        COLUMN_COMMENT -- '注释'
-    FROM
-        information_schema.`COLUMNS`
-    WHERE
-        TABLE_SCHEMA = '{database_name}'
-    ORDER BY
-        TABLE_NAME,
-        ORDINAL_POSITION;
-    "#
+    NUMERIC_SCALE , -- 小数精度
+    COLUMN_KEY, -- 'KEY'
+    EXTRA , -- 额外说明
+    COLUMN_COMMENT -- '注释'
+FROM
+    information_schema.`COLUMNS`
+WHERE
+    TABLE_SCHEMA = '{database_name}'
+ORDER BY
+    TABLE_NAME,
+    ORDINAL_POSITION;
+"#
     )
 }
 
@@ -96,10 +95,19 @@ mod test {
     }
 }
 
-pub fn get_100_row(db_name: &str, table_name: &str) -> String {
+pub fn select_by_page(
+    db_name: &str,
+    table_name: &str,
+    page: Option<usize>,
+    size: Option<usize>,
+) -> String {
+    let page = page.unwrap_or(0);
+    let size = size.unwrap_or(100);
     format!(
-        r#"
-        SELECT * FROM {db_name}.{table_name} LIMIT 100
-    "#
+        "SELECT * FROM {}.{} LIMIT {},{}",
+        db_name,
+        table_name,
+        page * size,
+        size
     )
 }

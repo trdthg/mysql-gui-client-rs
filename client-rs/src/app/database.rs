@@ -77,6 +77,7 @@ impl eframe::App for DataBase {
             ui.horizontal(|ui| {
                 ui.label("DATABASE");
                 if ui.button("+").clicked() {
+                    // ➕
                     self.config_new_conn.open();
                 };
             });
@@ -90,13 +91,18 @@ impl eframe::App for DataBase {
         });
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
-            self.table.update(ctx, frame);
+            self.table.update(ui);
         });
 
-        egui::panel::TopBottomPanel::bottom("数据库管理 bottom").show(ctx, |ui| {
-            //
-            ui.label("状态栏：您当前正在观测的数据库是 XXX");
-        });
+        // egui::panel::TopBottomPanel::bottom("表管理 bottom").show(ctx, |ui| {
+        //     ui.horizontal(|ui| {
+        //         ui.horizontal(|ui| {
+        //             if ui.button("奇妙的东西").clicked() {};
+        //             if ui.button("奇妙的东西").clicked() {};
+        //             if ui.button("奇妙的东西").clicked() {};
+        //         });
+        //     });
+        // });
     }
 }
 
@@ -189,7 +195,9 @@ impl DataBase {
                                                         db: Some(db_name.to_string()),
                                                         table: Some(table_name.to_string()),
                                                         r#type: message::SelectType::Table,
-                                                        sql: sqls::get_100_row(db_name, table_name),
+                                                        sql: sqls::select_by_page(
+                                                            db_name, table_name, None, None,
+                                                        ),
                                                         fields,
                                                     })
                                                 {
@@ -313,6 +321,7 @@ impl DataBase {
                     db,
                     table,
                     datas,
+                    sql,
                 } => {
                     tracing::info!("查询表数据成功！");
                     if let Some(fields) = self.get_fields(&conn, &db, &table) {
@@ -326,6 +335,7 @@ impl DataBase {
                             fields,
                             datas,
                         });
+                        self.table.update_sql(&sql);
                         self.table.update_content(meta);
                     }
                 }
@@ -337,7 +347,6 @@ impl DataBase {
                         fields,
                         datas,
                     });
-                    // self.table.update_sql(&sql);
                     self.table.update_content(meta);
                 }
             }

@@ -280,6 +280,7 @@ async fn handle_select(
                 db: db.unwrap(),
                 table: table.unwrap(),
                 datas,
+                sql,
             })
         }
         SelectType::Customed => {

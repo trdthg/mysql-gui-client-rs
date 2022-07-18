@@ -93,7 +93,7 @@ impl App {
 
                 // 渲染右侧按钮
                 ui.with_layout(Layout::right_to_left(), |ui| {
-                    let close_btn = ui.add(Button::new("✖")); // ✕ ❌ ✖ ❎ ✅ ✔
+                    let close_btn = ui.add(Button::new("✖")); // ✕ ❌ ✖ ❎ ✅ ✔ ➕+
                     if close_btn.clicked() {
                         frame.quit();
                     }

@@ -4,7 +4,7 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::service::database::message;
+use crate::service::database::{message, sqls};
 
 use super::{Conns, Field};
 
@@ -14,6 +14,7 @@ pub struct Table {
     edit: EditCtl,
     meta: Option<Box<TableMeta>>,
     code_editor: CodeEditor,
+    tablectl: TableCtl,
 }
 
 impl Table {
@@ -24,11 +25,27 @@ impl Table {
             meta: None,
             code_editor: CodeEditor::new(),
             s,
+            tablectl: TableCtl::new(),
         }
     }
 
     pub fn update_sql(&mut self, sql: &str) {
         self.code_editor.input = sql.to_owned()
+    }
+}
+
+pub struct TableCtl {
+    page: String,
+    size: String,
+    filter: String,
+}
+impl TableCtl {
+    pub fn new() -> Self {
+        Self {
+            page: String::from("1"),
+            size: String::from("100"),
+            filter: String::new(),
+        }
     }
 }
 
@@ -59,6 +76,7 @@ pub struct TableMeta {
 
 struct EditCtl {
     input_caches: Box<Vec<String>>,
+    select_row: Option<usize>,
     selected_cell: Option<usize>,
     input_cache: String,
 }
@@ -67,110 +85,188 @@ impl EditCtl {
     pub fn new() -> Self {
         Self {
             input_caches: Box::new(vec![]),
-            selected_cell: None,
             input_cache: String::new(),
+            select_row: None,
+            selected_cell: None,
         }
     }
 }
 
-impl eframe::App for Table {
-    fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
-        egui::panel::TopBottomPanel::top("表管理 top")
-            .resizable(true)
-            .show(ctx, |ui| {
-                egui::menu::bar(ui, |ui| {
-                    let current_conn = ui.label("连接");
+impl Table {
+    pub fn refresh(&self) {
+        if let Some(meta) = self.meta.as_ref() {
+            let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
+            let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
+            let sql =
+                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
+            if let Err(e) = self.s.send(message::Message::Select {
+                conn: meta.conn_name.to_owned(),
+                db: Some(meta.db_name.to_owned()),
+                table: Some(meta.table_name.to_owned()),
+                fields: Some(meta.fields.to_owned()),
+                r#type: message::SelectType::Table,
+                sql,
+            }) {
+                tracing::error!("翻页请求失败：{}", e);
+            }
+        }
+    }
+    // https://juejin.cn/post/6920043290385448974#3__68
+    pub fn update(&mut self, ui: &mut egui::Ui) {
+        // 辅助信息
+        egui::menu::bar(ui, |ui| {
+            let current_conn = ui.label("连接");
 
-                    egui::ComboBox::from_id_source(current_conn.id)
-                        .selected_text(match &self.code_editor.chosed_conn {
-                            Some(conn) => conn.as_str(),
-                            None => "None",
-                        })
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.code_editor.chosed_conn, None, "None");
-                            if let Some(tree) = &self.code_editor.tree {
-                                for conn in tree.keys() {
-                                    ui.selectable_value(
-                                        &mut self.code_editor.chosed_conn,
-                                        Some(conn.to_string()),
-                                        conn,
-                                    );
-                                }
-                            }
-                        });
-
-                    let current_db = ui.label("数据库");
-                    egui::ComboBox::from_id_source(current_db.id)
-                        .selected_text(match &self.code_editor.chosed_db {
-                            Some(db_name) => db_name.as_str(),
-                            None => "None",
-                        })
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.code_editor.chosed_db, None, "None");
-                            let chosed_conn =
-                                self.code_editor.chosed_conn.to_owned().unwrap_or_default();
-                            if let Some(dbs) = self
-                                .code_editor
-                                .tree
-                                .as_ref()
-                                .and_then(|tree| tree.get(&chosed_conn))
-                                .and_then(|conn| conn.databases.as_ref())
-                            {
-                                for db in dbs.keys() {
-                                    ui.selectable_value(
-                                        &mut self.code_editor.chosed_db,
-                                        Some(db.to_string()),
-                                        db,
-                                    );
-                                }
-                            }
-                        });
-                    if ui.button("执行 ▶").clicked() {
-                        // ◀
-                        if let Some(conn) = &self.code_editor.chosed_conn {
-                            if let Err(e) = self.s.send(message::Message::Select {
-                                conn: conn.to_owned(),
-                                db: self.code_editor.chosed_db.to_owned(),
-                                table: None,
-                                fields: None,
-                                r#type: message::SelectType::Customed,
-                                sql: self.code_editor.input.to_owned(),
-                            }) {
-                                tracing::error!("后台服务连接断开：{}", e);
-                            }
+            egui::ComboBox::from_id_source(current_conn.id)
+                .selected_text(match &self.code_editor.chosed_conn {
+                    Some(conn) => conn.as_str(),
+                    None => "None",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.code_editor.chosed_conn, None, "None");
+                    if let Some(tree) = &self.code_editor.tree {
+                        for conn in tree.keys() {
+                            ui.selectable_value(
+                                &mut self.code_editor.chosed_conn,
+                                Some(conn.to_string()),
+                                conn,
+                            );
                         }
                     }
                 });
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.code_editor.input)
-                            .desired_width(f32::INFINITY)
-                            .code_editor(),
-                    )
-                });
-            });
 
-        egui::panel::CentralPanel::default().show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                if ui.button("新增").clicked() {};
-                if ui.button("删除").clicked() {};
-                if ui.button("刷新").clicked() {};
-            });
-            ui.separator();
-            ScrollArea::horizontal().show(ui, |ui| {
-                self.show_content(ui, ctx);
-            });
+            let current_db = ui.label("数据库");
+            egui::ComboBox::from_id_source(current_db.id)
+                .selected_text(match &self.code_editor.chosed_db {
+                    Some(db_name) => db_name.as_str(),
+                    None => "None",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.code_editor.chosed_db, None, "None");
+                    let chosed_conn = self.code_editor.chosed_conn.to_owned().unwrap_or_default();
+                    if let Some(dbs) = self
+                        .code_editor
+                        .tree
+                        .as_ref()
+                        .and_then(|tree| tree.get(&chosed_conn))
+                        .and_then(|conn| conn.databases.as_ref())
+                    {
+                        for db in dbs.keys() {
+                            ui.selectable_value(
+                                &mut self.code_editor.chosed_db,
+                                Some(db.to_string()),
+                                db,
+                            );
+                        }
+                    }
+                });
+            if ui.button("执行 ▶").clicked() {
+                // ◀
+                if let Some(conn) = &self.code_editor.chosed_conn {
+                    if let Err(e) = self.s.send(message::Message::Select {
+                        conn: conn.to_owned(),
+                        db: self.code_editor.chosed_db.to_owned(),
+                        table: None,
+                        fields: None,
+                        r#type: message::SelectType::Customed,
+                        sql: self.code_editor.input.to_owned(),
+                    }) {
+                        tracing::error!("后台服务连接断开：{}", e);
+                    }
+                }
+            }
         });
 
-        egui::panel::TopBottomPanel::bottom("表管理 bottom").show(ctx, |ui| {
+        // sql 输入区
+        let sql_editor_output = egui::TextEdit::multiline(&mut self.code_editor.input)
+            .desired_width(f32::INFINITY)
+            .desired_rows(1)
+            .code_editor()
+            .hint_text("自定义 SQL 语句")
+            .show(ui);
+
+        if let Some(text_cursor_range) = sql_editor_output.cursor_range {
+            use egui::TextBuffer as _;
+            let selected_chars = text_cursor_range.as_sorted_char_range();
+            let selected_text = self.code_editor.input.char_range(selected_chars);
+            ui.label("Selected text: ");
+            ui.monospace(selected_text);
+        }
+
+        // 表格控制区
+        egui::menu::bar(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("当前滚动条偏移量：px",));
-                ui.horizontal(|ui| {
-                    if ui.button("奇妙的东西").clicked() {};
-                    if ui.button("奇妙的东西").clicked() {};
-                    if ui.button("奇妙的东西").clicked() {};
-                });
+                egui::TextEdit::singleline(&mut self.tablectl.filter)
+                    .hint_text("过滤")
+                    .desired_width(100.)
+                    .show(ui);
+
+                if ui.button("新增").clicked() {};
+                if ui.button("删除").clicked() {};
+                if ui.button("刷新").clicked() {
+                    self.refresh();
+                };
+
+                if ui.button("⏪").clicked() {
+                    self.tablectl.page = 0.to_string();
+                    self.refresh();
+                };
+                if ui.button("⏴").clicked() {
+                    if let Ok(n) = self.tablectl.page.parse::<usize>() {
+                        self.tablectl.page = if n <= 0 {
+                            0.to_string()
+                        } else {
+                            (n - 1).to_string()
+                        };
+                    }
+                    self.refresh();
+                }; // ◀
+                let page_input = egui::TextEdit::singleline(&mut self.tablectl.page)
+                    .hint_text("页")
+                    .desired_width(30.)
+                    .show(ui);
+                if page_input.response.lost_focus() && page_input.response.changed() {
+                    self.refresh();
+                }
+                if ui.button("⏵").clicked() {
+                    if let Ok(n) = self.tablectl.page.parse::<usize>() {
+                        self.tablectl.page = (n + 1).to_string();
+                    }
+                    self.refresh();
+                }; // ▶
+                if ui.button("⏩").clicked() {
+                    if let Ok(n) = self.tablectl.page.parse::<usize>() {
+                        self.tablectl.page = (n + 1).to_string();
+                    }
+                    self.refresh();
+                };
+
+                ui.label("数量");
+                let size_input = egui::TextEdit::singleline(&mut self.tablectl.size)
+                    .hint_text("")
+                    .desired_width(30.)
+                    .show(ui);
+                if size_input.response.lost_focus() && size_input.response.changed() {
+                    self.refresh();
+                }
+
+                ui.label(format!("当前选中行：",));
+                if let Some(selected) = self.edit.select_row {
+                    ui.label(
+                        egui::RichText::new(format!(" {} ", selected))
+                            .color(Color32::WHITE)
+                            .background_color(Color32::BLUE),
+                    );
+                } else {
+                    ui.label("None".to_string());
+                }
             });
+        });
+        ui.separator();
+
+        // 表格显示区
+        ScrollArea::horizontal().show(ui, |ui| {
+            self.show_content(ui);
         });
     }
 }
@@ -184,14 +280,14 @@ impl Table {
         self.code_editor.tree = Some(conns);
     }
 
-    pub fn show_content(&mut self, ui: &mut egui::Ui, ctx: &Context) {
+    pub fn show_content(&mut self, ui: &mut egui::Ui) {
         use egui_extras::{Size, TableBuilder};
         // tracing::info!("开始渲染表格...");
         if let Some(meta) = &self.meta {
             let fields = &meta.fields;
             let datas = &meta.datas;
-            let row_n = datas.len();
-            let col_n = fields.len();
+            let row_len = datas.len();
+            let col_len = fields.len();
 
             // tracing::info!("字段数量：{}", fields.len(),);
             let mut tb = TableBuilder::new(ui)
@@ -201,15 +297,13 @@ impl Table {
                 .resizable(true);
 
             // tracing::info!("设置列数列宽...");
-            if self.count {
-                tb = tb.column(Size::Absolute {
-                    initial: 20.,
-                    range: (0., 40.),
-                });
-            }
+            tb = tb.column(Size::Absolute {
+                initial: 20.,
+                range: (0., 400.),
+            });
             for (i, field) in fields.iter().enumerate() {
                 let init_width = field.default_width();
-                if i == col_n - 1 {
+                if i == col_len - 1 {
                     tb = tb.column(Size::Remainder {
                         range: (init_width * 2., f32::INFINITY),
                     });
@@ -221,11 +315,10 @@ impl Table {
 
             // tracing::info!("构造 header...");
             let tb = tb.header(20.0, |mut header| {
-                if self.count {
-                    header.col(|ui| {
-                        ui.colored_label(Color32::DARK_GRAY, "");
-                    });
-                }
+                header.col(|ui| {
+                    // ui.colored_label(Color32::DARK_GRAY, "");
+                    if ui.button("⚐").clicked() {}
+                });
                 for field in fields.iter() {
                     header.col(|ui| {
                         ui.heading(&field.name);
@@ -233,29 +326,47 @@ impl Table {
                 }
             });
             // tracing::info!("构造 body...");
+
+            // 过滤器
+            let filtered_indexs = datas
+                .iter()
+                .enumerate()
+                .filter(|(_, x)| {
+                    for cell in x.iter() {
+                        if cell.contains(self.tablectl.filter.as_str()) {
+                            return true;
+                        }
+                    }
+                    return false;
+                })
+                .map(|x| x.0)
+                .collect::<Vec<usize>>();
+
             tb.body(|body| {
                 let height = 18.0 * 2.;
                 // 一次添加所有行 (相同高度)（效率最高）
-                body.rows(height, row_n, |index, mut row| {
-                    if self.count {
-                        row.col(|ui| {
-                            ui.label(
-                                egui::RichText::new((index + 1).to_string())
-                                    .color(Color32::DARK_GREEN),
-                            );
-                        });
-                    }
-                    for (i, cell) in datas[index].iter().enumerate() {
+                body.rows(height, filtered_indexs.len(), |row_index, mut row| {
+                    // 单选框 + 索引
+                    row.col(|ui| {
+                        ui.radio_value(
+                            &mut self.edit.select_row,
+                            Some(row_index),
+                            egui::RichText::new(row_index.to_string()).color(Color32::BLUE),
+                        );
+                    });
+                    // 数据行 (从过滤器中展示)
+                    for (col_index, cell) in datas[filtered_indexs[row_index]].iter().enumerate() {
                         row.col(|ui| {
                             let data_str = cell.as_str();
-                            let current_cell_id = index * col_n + i;
+                            let current_cell_id = row_index * col_len + col_index;
+                            // focus 判断
                             if self.edit.selected_cell == Some(current_cell_id) {
                                 let response = ui.text_edit_singleline(&mut self.edit.input_cache);
-                                if response.lost_focus() {
-                                    // self.edit.selected_cell = None;
-                                }
+                                if response.lost_focus() {}
+                                // 取消 focus
                                 if response.clicked_elsewhere() {
                                     self.edit.selected_cell = None;
+                                    self.edit.select_row = None;
                                 }
                             } else {
                                 let button = egui::Button::new(
@@ -273,6 +384,7 @@ impl Table {
                                     ui.output().copied_text = data_str.to_string();
                                 }
                                 if response.double_clicked() {
+                                    self.edit.select_row = Some(row_index);
                                     self.edit.selected_cell = Some(current_cell_id);
                                     self.edit.input_cache = data_str.to_string();
                                 }
