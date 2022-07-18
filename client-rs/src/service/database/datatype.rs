@@ -141,10 +141,10 @@ impl DataType {
             "CHAR" => DataType::Char { width: 0 },
             "VARCHAR" => DataType::Varchar,
             "TEXT" => DataType::Text,
-            "TEXT" => DataType::DateTime,
-            "TEXT" => DataType::Date,
-            "TEXT" => DataType::Time,
-            "TEXT" => DataType::TimeStamp,
+            "DATETIME" => DataType::DateTime,
+            "DATE" => DataType::Date,
+            "TIME" => DataType::Time,
+            "TIMESTAMP" => DataType::TimeStamp,
             "DECIMAL" => DataType::Decimal {
                 scale: 0,
                 precision: 0,
@@ -236,6 +236,7 @@ impl DataCell {
         mysql_row: &sqlx::mysql::MySqlRow,
         col: usize,
         field: &DataType,
+        is_nullable: bool,
     ) -> DataCell {
         let cell = match field {
             DataType::TinyInt => {
@@ -254,9 +255,13 @@ impl DataCell {
                 let data: i64 = mysql_row.try_get(col).unwrap_or_default();
                 DataCell::BigInt(data)
             }
-            DataType::Varchar | DataType::Text => {
+            DataType::Varchar => {
                 let data: String = mysql_row.try_get(col).unwrap_or_default();
                 DataCell::Varchar(data)
+            }
+            DataType::Text => {
+                let data: String = mysql_row.try_get(col).unwrap_or_default();
+                DataCell::Text(data)
             }
             DataType::Char { .. } => {
                 let data: String = mysql_row.try_get(col).unwrap_or_default();

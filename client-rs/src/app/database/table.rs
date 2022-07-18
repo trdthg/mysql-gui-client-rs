@@ -11,17 +11,17 @@ use super::{Conns, Field};
 pub struct Table {
     s: UnboundedSender<message::Message>,
     count: bool,
-    edit: EditCtl,
     meta: Option<Box<TableMeta>>,
     code_editor: CodeEditor,
     tablectl: TableCtl,
+    editctl: EditCtl,
 }
 
 impl Table {
     pub fn new(s: UnboundedSender<message::Message>) -> Self {
         Self {
             count: true,
-            edit: EditCtl::new(),
+            editctl: EditCtl::new(),
             meta: None,
             code_editor: CodeEditor::new(),
             s,
@@ -75,19 +75,21 @@ pub struct TableMeta {
 }
 
 struct EditCtl {
-    input_caches: Box<Vec<String>>,
     select_row: Option<usize>,
     selected_cell: Option<usize>,
     input_cache: String,
+    input_caches: Box<Vec<String>>,
+    adding_new_row: bool,
 }
 
 impl EditCtl {
     pub fn new() -> Self {
         Self {
-            input_caches: Box::new(vec![]),
             input_cache: String::new(),
             select_row: None,
             selected_cell: None,
+            input_caches: Box::new(vec![]),
+            adding_new_row: false,
         }
     }
 }
@@ -201,8 +203,18 @@ impl Table {
                     .desired_width(100.)
                     .show(ui);
 
-                if ui.button("新增").clicked() {};
-                if ui.button("删除").clicked() {};
+                if ui.button("新增").clicked() {
+                    self.editctl.adding_new_row = true;
+                };
+
+                // TODO! 有主键或者唯一键才能操作
+                // if meta.get_primary_key || unique {}
+                if ui.button("删除").clicked() {
+                    if let Some(selected_row) = self.editctl.select_row {
+                        //
+                    }
+                };
+
                 if ui.button("刷新").clicked() {
                     self.refresh();
                 };
@@ -251,7 +263,7 @@ impl Table {
                 }
 
                 ui.label(format!("当前选中行：",));
-                if let Some(selected) = self.edit.select_row {
+                if let Some(selected) = self.editctl.select_row {
                     ui.label(
                         egui::RichText::new(format!(" {} ", selected))
                             .color(Color32::WHITE)
@@ -273,6 +285,7 @@ impl Table {
 
 impl Table {
     pub fn update_content(&mut self, meta: Box<TableMeta>) {
+        self.editctl.input_caches = Box::new(vec![String::new(); meta.fields.len()]);
         self.meta = Some(meta);
     }
 
@@ -314,14 +327,19 @@ impl Table {
             }
 
             // tracing::info!("构造 header...");
-            let tb = tb.header(20.0, |mut header| {
+            let tb = tb.header(40.0, |mut header| {
                 header.col(|ui| {
                     // ui.colored_label(Color32::DARK_GRAY, "");
-                    if ui.button("⚐").clicked() {}
+                    ui.centered_and_justified(|ui| if ui.button("⚐").clicked() {});
                 });
                 for field in fields.iter() {
                     header.col(|ui| {
-                        ui.heading(&field.name);
+                        ui.centered_and_justified(|ui| {
+                            ui.vertical_centered_justified(|ui| {
+                                ui.heading(&field.name);
+                                ui.label(&field.column_type);
+                            });
+                        });
                     });
                 }
             });
@@ -342,14 +360,42 @@ impl Table {
                 .map(|x| x.0)
                 .collect::<Vec<usize>>();
 
-            tb.body(|body| {
+            tb.body(|mut body| {
                 let height = 18.0 * 2.;
+                if self.editctl.adding_new_row && self.meta.is_some() {
+                    body.row(height, |mut row| {
+                        row.col(|ui| {
+                            if ui.button("取消").clicked() {
+                                self.editctl.input_caches.iter_mut().for_each(|x| x.clear());
+                                self.editctl.adding_new_row = false;
+                            };
+                            // TODO!
+                            if ui.button("保存").clicked() {
+                                // if let Err(e) = self.s.send(message::Message::Insert {}) {
+                                //     tracing::error!("后台挂了？ {}", e);
+                                // }
+                            };
+                        });
+                        for i in 0..col_len {
+                            tracing::info!("{} ", self.editctl.input_caches.len());
+                            row.col(|ui| {
+                                let response =
+                                    ui.text_edit_singleline(&mut self.editctl.input_caches[i]);
+                                response.context_menu(|ui| {
+                                    if ui.button("置空").clicked() {
+                                        self.editctl.input_caches[i] = "".to_string();
+                                    }
+                                });
+                            });
+                        }
+                    });
+                }
                 // 一次添加所有行 (相同高度)（效率最高）
                 body.rows(height, filtered_indexs.len(), |row_index, mut row| {
                     // 单选框 + 索引
                     row.col(|ui| {
                         ui.radio_value(
-                            &mut self.edit.select_row,
+                            &mut self.editctl.select_row,
                             Some(row_index),
                             egui::RichText::new(row_index.to_string()).color(Color32::BLUE),
                         );
@@ -360,13 +406,14 @@ impl Table {
                             let data_str = cell.as_str();
                             let current_cell_id = row_index * col_len + col_index;
                             // focus 判断
-                            if self.edit.selected_cell == Some(current_cell_id) {
-                                let response = ui.text_edit_singleline(&mut self.edit.input_cache);
+                            if self.editctl.selected_cell == Some(current_cell_id) {
+                                let response =
+                                    ui.text_edit_singleline(&mut self.editctl.input_cache);
                                 if response.lost_focus() {}
                                 // 取消 focus
                                 if response.clicked_elsewhere() {
-                                    self.edit.selected_cell = None;
-                                    self.edit.select_row = None;
+                                    self.editctl.selected_cell = None;
+                                    self.editctl.select_row = None;
                                 }
                             } else {
                                 let button = egui::Button::new(
@@ -376,7 +423,7 @@ impl Table {
 
                                 let tooltip_ui = |ui: &mut egui::Ui| {
                                     ui.label(egui::RichText::new(data_str)); // .font(self.font_id.clone()));
-                                    ui.label(format!("\n\nClick to copy"));
+                                    ui.label(format!("\nClick to copy"));
                                 };
 
                                 let response = ui.add(button).on_hover_ui(tooltip_ui);
@@ -384,9 +431,9 @@ impl Table {
                                     ui.output().copied_text = data_str.to_string();
                                 }
                                 if response.double_clicked() {
-                                    self.edit.select_row = Some(row_index);
-                                    self.edit.selected_cell = Some(current_cell_id);
-                                    self.edit.input_cache = data_str.to_string();
+                                    self.editctl.select_row = Some(row_index);
+                                    self.editctl.selected_cell = Some(current_cell_id);
+                                    self.editctl.input_cache = data_str.to_string();
                                 }
                             }
                         });

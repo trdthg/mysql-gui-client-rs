@@ -15,6 +15,13 @@ pub enum Message {
         r#type: SelectType,
         sql: String,
     },
+    // Insert {
+    //     conn: String,
+    //     db: String,
+    //     table: String,
+    //     fields: Vec<String>,
+    //     datas: Vec<Option<String>>,
+    // },
 }
 
 pub enum SelectType {

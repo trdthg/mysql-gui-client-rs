@@ -55,6 +55,7 @@ pub struct Field {
     pub name: String,
     pub r#type: DataType,
     pub column_type: String,
+    pub is_nullable: bool,
 }
 impl Field {
     pub fn default_width(&self) -> f32 {

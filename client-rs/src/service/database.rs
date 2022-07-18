@@ -241,8 +241,13 @@ async fn handle_select(
                     name: row.column_name.to_owned(),
                     r#type: row.get_type(),
                     column_type: row.column_type,
-                    // datatype: row.get_type(),
-                    // details: row,
+                    is_nullable: if row.is_nullable == "YES" {
+                        true
+                    } else {
+                        false
+                    }, // 是否可以为空
+                       // datatype: row.get_type(),
+                       // details: row,
                 };
                 if map.contains_key(table_name) {
                     map.get_mut(table_name).unwrap().push(field);
@@ -250,12 +255,12 @@ async fn handle_select(
                     map.insert(table_name.to_owned(), vec![field]);
                 }
             }
-            for (db, fields) in map.iter() {
-                tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
-                for field in fields {
-                    tracing::trace!("名称： {}  类型：{}", field.name, field.column_type,);
-                }
-            }
+            // for (db, fields) in map.iter() {
+            //     tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
+            //     for field in fields {
+            //         tracing::trace!("名称： {}  类型：{}", field.name, field.column_type,);
+            //     }
+            // }
             s.send(message::Response::Tables {
                 conn,
                 db: db.unwrap(),
@@ -271,7 +276,12 @@ async fn handle_select(
                 Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
             for col in 0..fields.len() {
                 for (i, row) in rows.iter().enumerate() {
-                    let cell = DataCell::from_mysql_row(&row, col, &fields[col].r#type);
+                    let cell = DataCell::from_mysql_row(
+                        &row,
+                        col,
+                        &fields[col].r#type,
+                        fields[col].is_nullable,
+                    );
                     datas[i].push(cell.to_string());
                 }
             }
@@ -300,13 +310,15 @@ async fn handle_select(
                     let field_name = field.name();
                     let field_type = DataType::from_uppercase(field.type_info().name());
                     for (i, row) in rows.iter().enumerate() {
-                        let cell = DataCell::from_mysql_row(&row, col, &field_type);
+                        // TODO! 如何判断能不能为空？
+                        let cell = DataCell::from_mysql_row(&row, col, &field_type, true);
                         datas[i].push(cell.to_string());
                     }
                     fields.push(Field {
                         name: field_name.to_owned(),
                         column_type: field_type.to_string(),
                         r#type: field_type,
+                        is_nullable: true,
                     });
                 }
                 s.send(message::Response::Customed { fields, datas })

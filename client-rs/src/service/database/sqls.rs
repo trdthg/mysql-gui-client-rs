@@ -42,7 +42,7 @@ pub struct FieldMeta {
     pub ordinal_position: u64,          // 列的排列顺序
     pub column_default: Option<String>, // 默认值
 
-    pub is_nullable: String,                   // 是否为空
+    pub is_nullable: String,                   // 是否可以为空
     pub data_type: String,                     // 数据类型
     pub column_type: String,                   // 列类型
     pub character_maximum_length: Option<u16>, // 字符最大长度
