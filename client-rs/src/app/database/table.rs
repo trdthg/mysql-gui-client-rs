@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::service::database::{message, sqls};
 
-use super::{Conns, Field};
+use super::{Conns, Field, TableRows};
 
 pub struct Table {
     s: UnboundedSender<message::Message>,
@@ -71,7 +71,7 @@ pub struct TableMeta {
     pub db_name: String,
     pub table_name: String,
     pub fields: Box<Vec<Field>>,
-    pub datas: Box<Vec<Vec<String>>>,
+    pub datas: TableRows,
 }
 
 struct EditCtl {
@@ -351,8 +351,10 @@ impl Table {
                 .enumerate()
                 .filter(|(_, x)| {
                     for cell in x.iter() {
-                        if cell.contains(self.tablectl.filter.as_str()) {
-                            return true;
+                        if let Some(cell) = cell {
+                            if cell.contains(self.tablectl.filter.as_str()) {
+                                return true;
+                            }
                         }
                     }
                     return false;
@@ -403,6 +405,11 @@ impl Table {
                     // 数据行 (从过滤器中展示)
                     for (col_index, cell) in datas[filtered_indexs[row_index]].iter().enumerate() {
                         row.col(|ui| {
+                            if cell.is_none() {
+                                ui.label(egui::RichText::new("NULL").color(Color32::GRAY));
+                                return;
+                            }
+                            let cell = cell.as_ref().unwrap();
                             let data_str = cell.as_str();
                             let current_cell_id = row_index * col_len + col_index;
                             // focus 判断

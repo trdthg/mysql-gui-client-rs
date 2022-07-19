@@ -30,51 +30,202 @@ pub enum DataType {
     Text,
 }
 
-#[derive(Debug, Clone)]
-pub enum DataCell {
-    // i8
-    TinyInt(i8),
-    // i16
-    SmallInt(i16),
-    // MiddleInt(i32),
-    // i32
-    Integer(i32),
-    // i64
-    BigInt(i64),
-    // carchar
-    Varchar(String),
-    // char(10)
-    Char(String),
-    Text(String),
-    // bool
-    Boolean(bool),
-    // f32
-    Float(f32),
-    // f64
-    Double(f64),
-    // deciml(2,6)
-    Decimal(Decimal),
-    Date(sqlx::types::chrono::NaiveDate),
-    Time(sqlx::types::chrono::NaiveTime),
-    DateTime(sqlx::types::chrono::NaiveDateTime),
-    TimeStamp(chrono::DateTime<chrono::Utc>),
-    Unknown(String),
-    // Null = 0x06,
-    // Year = 0x0d,
-    // Bit = 0x10,
-    // Json = 0xf5,
-    // NewDecimal = 0xf6,
-    // Enum = 0xf7,
-    // Set = 0xf8,
-    // TinyBlob = 0xf9,
-    // MediumBlob = 0xfa,
-    // LongBlob = 0xfb,
-    // Blob = 0xfc,
-    // VarString = 0xfd,
-    // String = 0xfe,
-    // Geometry = 0xff,
+macro_rules! datatype_match_pattern {
+    ($match_pattern:pat,  $datatype:ty, $scalar:ty) => {
+        $match_pattern
+    };
+}
+macro_rules! datatype_basictype {
+    ($match_pattern:pat,  $datatype:ty, $scalar:ty) => {
+        $scalar
+    };
+}
+macro_rules! datatype_name {
+    ($match_pattern:pat,  $datatype:ty, $scalar:ty) => {
+        $datatype
+    };
+}
+pub(crate) use datatype_basictype;
+pub(crate) use datatype_match_pattern;
+pub(crate) use datatype_name;
+
+/// Association information for `Boolean` logical type.
+macro_rules! boolean {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Boolean,
+            Boolean,
+            bool
+        }
+    };
 }
 
+pub(crate) use boolean;
+
+macro_rules! int8 {
+    ($macro:ident) => {
+        $macro! {
+            DataType::TinyInt,
+            TinyInt,
+            i8
+        }
+    };
+}
+pub(crate) use int8;
+
+macro_rules! int16 {
+    ($macro:ident) => {
+        $macro! {
+            DataType::SmallInt,
+            SmallInt,
+            i16
+        }
+    };
+}
+pub(crate) use int16;
+
+macro_rules! int32 {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Integer,
+            Integer,
+            i32
+        }
+    };
+}
+pub(crate) use int32;
+
+macro_rules! int64 {
+    ($macro:ident) => {
+        $macro! {
+            DataType::BigInt,
+            BigInt,
+            i64
+        }
+    };
+}
+pub(crate) use int64;
+
+macro_rules! varchar {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Varchar,
+            Varchar,
+            String
+        }
+    };
+}
+pub(crate) use varchar;
+
+macro_rules! fwchar {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Char { .. },
+            Char,
+            String
+        }
+    };
+}
+
+macro_rules! text {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Text,
+            Text,
+            String
+        }
+    };
+}
+
+pub(crate) use fwchar;
+macro_rules! float {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Float,
+            Float,
+            f32
+        }
+    };
+}
+pub(crate) use float;
+
+macro_rules! double {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Double,
+            Double,
+            f64
+        }
+    };
+}
+
+pub(crate) use double;
+
+/// Association information for `Decimal` logical type.
+macro_rules! decimal {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Decimal { .. },
+            Decimal,
+            Decimal
+        }
+    };
+}
+pub(crate) use decimal;
+
+macro_rules! date {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Date,
+            Date,
+            sqlx::types::chrono::NaiveDate
+        }
+    };
+}
+pub(crate) use date;
+
+macro_rules! time {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Time,
+            Time,
+            sqlx::types::chrono::NaiveTime
+        }
+    };
+}
+pub(crate) use time;
+
+macro_rules! datetime {
+    ($macro:ident) => {
+        $macro! {
+            DataType::DateTime,
+            Time,
+            sqlx::types::chrono::NaiveDateTime
+        }
+    };
+}
+pub(crate) use datetime;
+
+macro_rules! timestamp {
+    ($macro:ident) => {
+        $macro! {
+            DataType::TimeStamp,
+            Time,
+            chrono::DateTime<chrono::Utc>
+        }
+    };
+}
+pub(crate) use timestamp;
+
+macro_rules! unknown {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Unknown,
+            Unknown,
+            String
+        }
+    };
+}
 impl DataType {
     pub fn get_default_width(&self) -> f32 {
         match self {
@@ -138,7 +289,7 @@ impl DataType {
             "BIGINT" => DataType::BigInt,
             "FLOAT" => DataType::Float,
             "DOUBLE" => DataType::Double,
-            "CHAR" => DataType::Char { width: 0 },
+            "CHAR" => DataType::Char { width: 10 },
             "VARCHAR" => DataType::Varchar,
             "TEXT" => DataType::Text,
             "DATETIME" => DataType::DateTime,
@@ -146,8 +297,8 @@ impl DataType {
             "TIME" => DataType::Time,
             "TIMESTAMP" => DataType::TimeStamp,
             "DECIMAL" => DataType::Decimal {
-                scale: 0,
-                precision: 0,
+                scale: 6,
+                precision: 2,
             },
             _ => DataType::Unknown,
         }
@@ -210,117 +361,86 @@ impl DataType {
 use sqlx::Row;
 
 use super::sqls::FieldMeta;
-impl DataCell {
-    pub fn to_string(&self) -> String {
-        match self {
-            DataCell::BigInt(i) => i.to_string(),
-            DataCell::TinyInt(i) => i.to_string(),
-            DataCell::SmallInt(i) => i.to_string(),
-            DataCell::Integer(i) => i.to_string(),
-            DataCell::Varchar(i) => i.to_string(),
-            DataCell::Char(i) => i.to_string(),
-            DataCell::Text(i) => i.to_string(),
-            DataCell::Boolean(i) => i.to_string(),
-            DataCell::Float(i) => i.to_string(),
-            DataCell::Double(i) => i.to_string(),
-            DataCell::Decimal(i) => i.to_string(),
-            DataCell::Date(i) => i.to_string(),
-            DataCell::Time(i) => i.to_string(),
-            DataCell::DateTime(i) => i.to_string(),
-            DataCell::TimeStamp(i) => i.to_string(),
-            DataCell::Unknown(i) => i.to_string(),
-        }
-    }
 
-    pub fn from_mysql_row(
-        mysql_row: &sqlx::mysql::MySqlRow,
-        col: usize,
-        field: &DataType,
-        is_nullable: bool,
-    ) -> DataCell {
-        let cell = match field {
-            DataType::TinyInt => {
-                let data: i8 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::TinyInt(data)
-            }
-            DataType::SmallInt => {
-                let data: i16 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::SmallInt(data)
-            }
-            DataType::Integer => {
-                let data: i32 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Integer(data)
-            }
-            DataType::BigInt => {
-                let data: i64 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::BigInt(data)
-            }
-            DataType::Varchar => {
-                let data: String = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Varchar(data)
-            }
-            DataType::Text => {
-                let data: String = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Text(data)
-            }
-            DataType::Char { .. } => {
-                let data: String = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Char(data)
-            }
-            DataType::Boolean => {
-                let data: bool = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Boolean(data)
-            }
-            DataType::Float => {
-                let data: f32 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Float(data)
-            }
-            DataType::Double => {
-                let data: f64 = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Double(data)
-            }
-            DataType::Decimal { .. } => {
-                let data: Decimal = mysql_row.try_get(col).unwrap_or_default();
-                DataCell::Decimal(data)
-            }
-            DataType::DateTime => {
-                let data: Result<sqlx::types::chrono::NaiveDateTime, sqlx::Error> =
-                    mysql_row.try_get(col);
-                if let Ok(data) = data {
-                    DataCell::DateTime(data)
-                } else {
-                    DataCell::Unknown("日期时间".to_string())
+macro_rules! datacell_to_string {
+    ([], $({ $Variant:ident, $BasicType:ident }),*) => {
+        #[derive(Debug, Clone)]
+        pub enum DataCell {
+            $(
+                $BasicType(Option<$Variant! { datatype_basictype }>),
+            )*
+        }
+
+        impl DataCell {
+            pub fn to_string(&self) -> Option<String> {
+                match self {
+                    $(
+                        // DataCell::$Variant(i) => i.as_ref().and_then(|x| Some(x.to_string())),
+                        DataCell::$BasicType(i) => i.as_ref().and_then(|x| Some(x.to_string())),
+                    )*
                 }
             }
-            DataType::Date => {
-                let data: Result<sqlx::types::chrono::NaiveDate, sqlx::Error> =
-                    mysql_row.try_get(col);
-                if let Ok(data) = data {
-                    DataCell::Date(data)
-                } else {
-                    DataCell::Unknown("日期".to_string())
-                }
+
+            pub fn from_mysql_row(
+                mysql_row: &sqlx::mysql::MySqlRow,
+                col: usize,
+                field: &DataType,
+                is_nullable: bool,
+            ) -> DataCell {
+                let cell = match field {
+                    $(
+                        // DataType::TinyInt => {
+                        //     let data: Option<i8> = mysql_row.try_get(col).unwrap_or_default();
+                        //     DataCell::TinyInt(data)
+                        // }
+                        $Variant! { datatype_match_pattern } => {
+                            let data: Option<$Variant! { datatype_basictype } > = mysql_row.try_get(col).unwrap_or_default();
+                            DataCell::$BasicType(data)
+                        }
+                    )*
+                };
+                cell
             }
-            DataType::Time => {
-                let data: Result<sqlx::types::chrono::NaiveTime, sqlx::Error> =
-                    mysql_row.try_get(col);
-                if let Ok(data) = data {
-                    DataCell::Time(data)
-                } else {
-                    DataCell::Unknown("时间".to_string())
-                }
-            }
-            DataType::TimeStamp => {
-                let data: Result<chrono::DateTime<chrono::Utc>, sqlx::Error> =
-                    mysql_row.try_get(col);
-                if let Ok(data) = data {
-                    DataCell::TimeStamp(data)
-                } else {
-                    DataCell::Unknown("时间戳".to_string())
-                }
-            }
-            DataType::Unknown => DataCell::Unknown("未知类型".to_string()),
-        };
-        cell
-    }
+        }
+    };
 }
+
+macro_rules! get_all_datatype {
+    ( $macro:ident ) => {
+        $macro! {
+            [],
+            { int8, TinyInt },
+            { int16, SmallInt },
+            { int32, Integer },
+            { int64, BigInt},
+            { fwchar, Char},
+            { varchar, Varchar},
+            { text, Text},
+            { boolean, Boolean},
+            { float,  Float},
+            { double, Double},
+            { decimal, Decimal},
+            { date, Date},
+            { time, Time},
+            { datetime, DateTime},
+            { timestamp, TimeStamp},
+            { unknown, Unknown}
+            // Null = 0x06,
+            // Year = 0x0d,
+            // Bit = 0x10,
+            // Json = 0xf5,
+            // NewDecimal = 0xf6,
+            // Enum = 0xf7,
+            // Set = 0xf8,
+            // TinyBlob = 0xf9,
+            // MediumBlob = 0xfa,
+            // LongBlob = 0xfb,
+            // Blob = 0xfc,
+            // VarString = 0xfd,
+            // String = 0xfe,
+            // Geometry = 0xff,
+        }
+    };
+}
+
+get_all_datatype!(datacell_to_string);

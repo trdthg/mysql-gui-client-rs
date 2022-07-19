@@ -1,4 +1,4 @@
-use crate::app::database::{Databases, Field, Tables};
+use crate::app::database::{Databases, Field, Tables, TableRows};
 
 use super::{datatype::DataType, entity::ConnectionConfig};
 
@@ -51,10 +51,10 @@ pub enum Response {
         db: String,
         sql: String,
         table: String,
-        datas: Box<Vec<Vec<String>>>,
+        datas: TableRows,
     },
     Customed {
         fields: Box<Vec<Field>>,
-        datas: Box<Vec<Vec<String>>>,
+        datas: TableRows,
     },
 }

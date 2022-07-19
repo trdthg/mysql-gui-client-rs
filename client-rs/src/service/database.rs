@@ -14,7 +14,7 @@ pub mod entity;
 pub mod message;
 pub mod sqls;
 
-use crate::app::database::{Field, DB};
+use crate::app::database::{Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
@@ -272,8 +272,7 @@ async fn handle_select(
                 return;
             }
             let fields = fields.unwrap();
-            let mut datas: Box<Vec<Vec<String>>> =
-                Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
+            let mut datas: TableRows = Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
             for col in 0..fields.len() {
                 for (i, row) in rows.iter().enumerate() {
                     let cell = DataCell::from_mysql_row(
@@ -302,7 +301,7 @@ async fn handle_select(
             } else {
                 use sqlx::{Column, TypeInfo};
                 let columns = rows[0].columns();
-                let mut datas: Box<Vec<Vec<String>>> =
+                let mut datas: TableRows =
                     Box::new(vec![Vec::with_capacity(columns.len()); rows.len()]);
 
                 let mut fields = Box::new(Vec::with_capacity(columns.len()));

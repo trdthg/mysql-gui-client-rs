@@ -65,6 +65,8 @@ impl Field {
 
 pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
 
+pub type TableRows = Box<Vec<Vec<Option<String>>>>;
+
 impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::panel::TopBottomPanel::top("数据库管理 top").show(ctx, |ui| {
