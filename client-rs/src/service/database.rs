@@ -10,7 +10,6 @@ use tokio::sync::{
     RwLock,
 };
 pub mod datatype;
-pub mod entity;
 pub mod message;
 pub mod sqls;
 
@@ -18,8 +17,7 @@ use crate::app::database::{Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
-    entity::ConnectionConfig,
-    message::{Message, Response, SelectType},
+    message::{ConnectionConfig, Message, Response, SelectType},
 };
 
 use super::{make_chan, Channels, Client, Server};

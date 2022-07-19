@@ -1,14 +1,6 @@
 mod config_new_conn;
 mod table;
-use crate::service::database::{entity::ConnectionConfig, DatabaseClient};
-use crate::service::{
-    database::{
-        datatype::DataType,
-        message,
-        sqls::{self, FieldMeta},
-    },
-    Client,
-};
+use crate::service::database::{datatype::DataType, message, sqls, DatabaseClient};
 use eframe::{
     egui::{self, RichText, ScrollArea},
     epaint::Color32,
@@ -29,7 +21,7 @@ pub struct DataBase {
 
 #[derive(Clone, Debug)]
 pub struct Conn {
-    pub config: ConnectionConfig,
+    pub config: message::ConnectionConfig,
     pub conn: Option<usize>,
     pub databases: Option<Databases>,
 }

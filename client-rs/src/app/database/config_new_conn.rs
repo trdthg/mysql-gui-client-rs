@@ -4,14 +4,11 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{
-    app::database,
-    service::database::{entity::ConnectionConfig, message},
-};
+use crate::{app::database, service::database::message};
 
 #[derive(Default)]
 pub struct ConfigNewConnWindow {
-    tmp_config: ConnectionConfig,
+    tmp_config: message::ConnectionConfig,
     tmp_config_open: bool,
 }
 
