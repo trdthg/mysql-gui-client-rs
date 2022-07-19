@@ -361,7 +361,7 @@ impl DataType {
 use sqlx::Row;
 
 use super::sqls::FieldMeta;
-
+use std::str::FromStr;
 macro_rules! datacell_to_string {
     ([], $({ $Variant:ident, $BasicType:ident }),*) => {
         #[derive(Debug, Clone)]
@@ -369,6 +369,33 @@ macro_rules! datacell_to_string {
             $(
                 $BasicType(Option<$Variant! { datatype_basictype }>),
             )*
+        }
+
+        pub fn sql_push_bind(sql: &mut sqlx::QueryBuilder<'_, sqlx::MySql>, s: &str, t: &DataType)
+        {
+            match t {
+                $(
+                    $Variant! { datatype_match_pattern } => {
+                        sql.push_bind(<$Variant!(datatype_basictype)>::from_str(s).unwrap());
+                    }
+                )*
+                // DataType::TinyInt => sql.push_bind(i32::from_str(s).unwrap()),
+                // DataType::SmallInt => todo!(),
+                // DataType::Integer => todo!(),
+                // DataType::BigInt => todo!(),
+                // DataType::Varchar => todo!(),
+                // DataType::Char { width } => todo!(),
+                // DataType::Boolean => todo!(),
+                // DataType::Float => todo!(),
+                // DataType::Double => todo!(),
+                // DataType::Decimal { scale, precision } => todo!(),
+                // DataType::Date => todo!(),
+                // DataType::Time => todo!(),
+                // DataType::DateTime => todo!(),
+                // DataType::TimeStamp => todo!(),
+                // DataType::Unknown => todo!(),
+                // DataType::Text => todo!(),
+            }
         }
 
         impl DataCell {

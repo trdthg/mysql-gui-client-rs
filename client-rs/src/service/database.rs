@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -13,7 +14,7 @@ pub mod datatype;
 pub mod message;
 pub mod sqls;
 
-use crate::app::database::{Field, TableRows, DB};
+use crate::app::database::{ColumnKey, Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
@@ -145,14 +146,85 @@ impl Server for DatabaseServer {
                         });
                     }
                     Message::Select {
-                        sql,
                         conn,
                         db,
                         table,
                         fields,
                         r#type,
+                        sql,
                     } => {
                         handle_select(conns, s, conn, db, table, fields, r#type, sql).await;
+                    }
+                    Message::Delete {
+                        conn,
+                        db,
+                        table,
+                        fields,
+                        datas,
+                    } => {
+                        //
+                        let mut sql =
+                            sqlx::QueryBuilder::new(format!("delete from {}.{} where ", db, table));
+                        let mut arr = vec![];
+                        for (i, field) in fields.iter().enumerate() {
+                            if matches!(field.column_key, ColumnKey::Primary) {
+                                arr.push(i)
+                            }
+                        }
+
+                        if arr.len() > 0 {
+                            let n =
+                                i32::from_str(datas[arr[0]].to_owned().unwrap().as_str()).unwrap();
+
+                            let field = &fields[arr[0]];
+                            // let n = a(datas[arr[0]].to_owned().unwrap().as_str(), field.r#type)
+                            // i32::from_str(datas[arr[0]].to_owned().unwrap().as_str()).unwrap();
+                            sql.push(fields[arr[0]].name.as_str()).push(" = ");
+                            datatype::sql_push_bind(
+                                &mut sql,
+                                datas[arr[0]].to_owned().unwrap().as_str(),
+                                &field.r#type,
+                            );
+
+                            tracing::info!("{}", datas[arr[0]].to_owned().unwrap().to_string());
+                            let arr = &arr[1..];
+                            for i in arr {
+                                let field = &fields[i.to_owned()];
+                                sql.push(" AND ").push(field.name.as_str()).push(" = ");
+                                // .push_bind(datas[*i].to_owned());
+                                datatype::sql_push_bind(
+                                    &mut sql,
+                                    datas[*i].to_owned().unwrap().as_str(),
+                                    &field.r#type,
+                                );
+                                tracing::info!("{}", datas[*i].to_owned().unwrap().to_string());
+                            }
+                        }
+                        tracing::info!("SQL 构建完毕");
+                        let sql = sql.build();
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            return;
+                        }
+                        let pool = pool.unwrap();
+                        if let Err(e) = match sql.execute(&pool).await {
+                            Ok(res) => {
+                                let msg = format!("删除了 {} 行", res.rows_affected());
+                                tracing::info!(msg);
+                                s.send(message::Response::Delete {
+                                    n: res.rows_affected(),
+                                    msg: msg,
+                                })
+                            }
+                            Err(e) => {
+                                let msg = format!("删除失败：{}", e);
+                                tracing::error!(msg);
+                                s.send(message::Response::Delete { n: 0, msg: msg })
+                            }
+                        } {
+                            tracing::error!("返回删除结果：{}", e);
+                        }
                     }
                 };
             } else {
@@ -239,6 +311,11 @@ async fn handle_select(
                     name: row.column_name.to_owned(),
                     r#type: row.get_type(),
                     column_type: row.column_type,
+                    column_key: match row.column_key.as_deref() {
+                        Some("PRI") => ColumnKey::Primary,
+                        Some(_) => ColumnKey::None,
+                        None => ColumnKey::None,
+                    },
                     is_nullable: if row.is_nullable == "YES" {
                         true
                     } else {
@@ -314,6 +391,7 @@ async fn handle_select(
                     fields.push(Field {
                         name: field_name.to_owned(),
                         column_type: field_type.to_string(),
+                        column_key: ColumnKey::None,
                         r#type: field_type,
                         is_nullable: true,
                     });
@@ -325,9 +403,9 @@ async fn handle_select(
         tracing::error!("查询数据失败 {}", e);
     }
 }
+
 #[cfg(test)]
 mod test {
-    use sqlx::mysql::MySqlConnectOptions;
 
     #[tokio::test]
     async fn it_should_work() {

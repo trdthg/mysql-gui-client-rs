@@ -13,13 +13,19 @@ pub enum Message {
         r#type: SelectType,
         sql: String,
     },
-    // Insert {
-    //     conn: String,
-    //     db: String,
-    //     table: String,
-    //     fields: Vec<String>,
-    //     datas: Vec<Option<String>>,
-    // },
+    Delete {
+        conn: String,
+        db: String,
+        table: String,
+        fields: Box<Vec<Field>>,
+        datas: Box<Vec<Option<String>>>,
+    }, // Insert {
+       //     conn: String,
+       //     db: String,
+       //     table: String,
+       //     fields: Vec<String>,
+       //     datas: Vec<Option<String>>,
+       // },
 }
 
 pub enum SelectType {
@@ -54,6 +60,10 @@ pub enum Response {
     Customed {
         fields: Box<Vec<Field>>,
         datas: TableRows,
+    },
+    Delete {
+        n: u64,
+        msg: String,
     },
 }
 

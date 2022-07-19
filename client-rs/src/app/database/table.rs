@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::service::database::{message, sqls};
 
-use super::{Conns, Field, TableRows};
+use super::{ColumnKey, Conns, Field, TableRows};
 
 pub struct Table {
     s: UnboundedSender<message::Message>,
@@ -32,6 +32,10 @@ impl Table {
     pub fn update_sql(&mut self, sql: &str) {
         self.code_editor.input = sql.to_owned()
     }
+
+    pub fn show_msg(&self, msg: String) {
+        // self
+    }
 }
 
 pub struct TableCtl {
@@ -42,7 +46,7 @@ pub struct TableCtl {
 impl TableCtl {
     pub fn new() -> Self {
         Self {
-            page: String::from("1"),
+            page: String::from("0"),
             size: String::from("100"),
             filter: String::new(),
         }
@@ -220,6 +224,17 @@ impl Table {
                 if ui.button("删除").clicked() {
                     if let Some(selected_row) = self.editctl.select_row {
                         //
+                        if let Some(meta) = &self.meta {
+                            if let Err(e) = self.s.send(message::Message::Delete {
+                                conn: meta.conn_name.to_owned(),
+                                db: meta.db_name.to_owned(),
+                                table: meta.table_name.to_owned(),
+                                fields: meta.fields.clone(),
+                                datas: Box::new(meta.datas[selected_row].clone()),
+                            }) {
+                                tracing::error!("删除请求发送失败 {}", e);
+                            }
+                        }
                     }
                 };
 
@@ -376,7 +391,6 @@ impl Table {
                 // 添加新行
                 if self.editctl.adding_new_row && self.meta.is_some() {
                     body.row(height, |mut row| {
-
                         row.col(|ui| {
                             // TODO!
                             if ui.button("保存").clicked() {
@@ -471,7 +485,7 @@ impl Table {
                                 }
                                 response.context_menu(|ui| {
                                     // 发送置空请求
-                                    if ui.button("置为空(NULL)").clicked() {
+                                    if ui.button("置为空 (NULL)").clicked() {
                                         //
                                     }
                                 });

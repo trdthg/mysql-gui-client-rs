@@ -47,7 +47,15 @@ pub struct Field {
     pub name: String,
     pub r#type: DataType,
     pub column_type: String,
+    pub column_key: ColumnKey,
     pub is_nullable: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum ColumnKey {
+    Primary,
+    Foreign,
+    None,
 }
 impl Field {
     pub fn default_width(&self) -> f32 {
@@ -343,6 +351,13 @@ impl DataBase {
                         datas,
                     });
                     self.table.update_content(meta);
+                }
+                message::Response::Delete { n, msg } => {
+                    if n == 0 {
+                        self.table.show_msg(msg);
+                    } else {
+                        self.table.refresh();
+                    }
                 }
             }
         }
