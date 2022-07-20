@@ -101,6 +101,7 @@ impl EditCtl {
 impl Table {
     pub fn refresh(&mut self) {
         if let Some(meta) = self.meta.as_ref() {
+            self.editctl.select_row = None;
             self.editctl.adding_new_row = false;
             let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
             let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
@@ -465,17 +466,35 @@ impl Table {
                                 // 编辑模式
                                 let response =
                                     ui.text_edit_singleline(&mut self.editctl.input_cache);
-                                if let Some(row) = self.editctl.select_row {
-                                    if ui
-                                        .input_mut()
-                                        .consume_key(egui::Modifiers::CTRL, egui::Key::Enter)
+                                if response.has_focus() {
+                                    if let (Some(selected_row), Some(meta)) =
+                                        (self.editctl.select_row, &self.meta)
                                     {
-                                        tracing::info!("尝试提交编辑 row_id {}", row);
+                                        if ui
+                                            .input_mut()
+                                            .consume_key(egui::Modifiers::CTRL, egui::Key::S)
+                                        {
+                                            tracing::info!("尝试提交编辑 row_id {}", selected_row);
+                                            if let Err(e) = self.s.send(message::Message::Update {
+                                                conn: meta.conn_name.to_owned(),
+                                                db: meta.db_name.to_owned(),
+                                                table: meta.table_name.to_owned(),
+                                                fields: meta.fields.to_owned(),
+                                                datas: Box::new(meta.datas[selected_row].clone()),
+                                                new_data_index: col_index,
+                                                new_data: Box::new(Some(
+                                                    self.editctl.input_cache.to_owned(),
+                                                )),
+                                            }) {
+                                                tracing::error!("发送编辑请求失败：{}", e);
+                                            }
+                                        }
                                     }
                                 }
                                 // 取消 focus
                                 if response.clicked_elsewhere() {
                                     self.editctl.selected_cell = None;
+                                    self.editctl.input_cache.clear();
                                     self.editctl.select_row = None;
                                 }
                             } else {
@@ -507,12 +526,29 @@ impl Table {
                                 if response.double_clicked() {
                                     self.editctl.select_row = Some(row_index);
                                     self.editctl.selected_cell = Some(current_cell_id);
-                                    self.editctl.input_cache = data_str.to_string();
+                                    self.editctl.input_cache = if cell.is_none() {
+                                        String::new()
+                                    } else {
+                                        data_str.to_string()
+                                    };
                                 }
                                 response.context_menu(|ui| {
                                     // 发送置空请求
                                     if ui.button("置为空 (NULL)").clicked() {
-                                        //
+                                        if let Some(meta) = &self.meta {
+                                            tracing::info!("尝试提交编辑 row_id {}", row_index);
+                                            if let Err(e) = self.s.send(message::Message::Update {
+                                                conn: meta.conn_name.to_owned(),
+                                                db: meta.db_name.to_owned(),
+                                                table: meta.table_name.to_owned(),
+                                                fields: meta.fields.to_owned(),
+                                                datas: Box::new(meta.datas[row_index].clone()),
+                                                new_data_index: col_index,
+                                                new_data: Box::new(None),
+                                            }) {
+                                                tracing::error!("发送编辑 (置空) 请求失败：{}", e);
+                                            }
+                                        }
                                     }
                                 });
                             }
@@ -539,7 +575,7 @@ impl Table {
                 // }
             });
         } else {
-            ui.centered_and_justified(|ui| ui.label("Loading..."));
+            ui.centered_and_justified(|ui| ui.heading("Loading..."));
         }
     }
 }

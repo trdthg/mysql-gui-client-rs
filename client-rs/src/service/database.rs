@@ -257,14 +257,14 @@ impl Server for DatabaseServer {
                                 datas[*col_index].to_owned().unwrap().as_str(),
                                 &fields[*col_index].r#type,
                             ) {
-                                let msg = format!("构建 Insert 语句失败: {}", e);
+                                let msg = format!("构建 Insert 语句失败：{}", e);
                                 tracing::error!("{}", msg);
                                 if let Err(e) = s.send(message::Response::Insert {
                                     n: 0,
                                     msg,
                                     sql: String::new(),
                                 }) {
-                                    tracing::error!("返回插入构建失败失败: {}", e);
+                                    tracing::error!("返回插入构建失败失败：{}", e);
                                 }
                                 continue;
                             } else {
@@ -306,6 +306,94 @@ impl Server for DatabaseServer {
                             }
                         } {
                             tracing::error!("返回插入结果失败：{}", e);
+                        }
+                    }
+                    Message::Update {
+                        conn,
+                        db,
+                        table,
+                        fields,
+                        datas,
+                        new_data_index,
+                        new_data,
+                    } => {
+                        // tracing::debug!("SQL 构建完毕");
+                        let mut query_builder =
+                            sqlx::QueryBuilder::new(format!("UPDATE {}.{} SET ", db, table));
+                        query_builder
+                            .push(fields[new_data_index].name.as_str())
+                            .push(" = ");
+                        if let Some(new_data) = new_data.as_deref() {
+                            datatype::query_push_bind(
+                                &mut query_builder,
+                                new_data,
+                                &fields[new_data_index].r#type,
+                            );
+                        } else {
+                            query_builder.push(" NULL ");
+                        }
+                        query_builder.push(" WHERE ");
+
+                        let mut arr = vec![];
+                        for (i, field) in fields.iter().enumerate() {
+                            if matches!(field.column_key, ColumnKey::Primary) {
+                                arr.push(i)
+                            }
+                        }
+
+                        if arr.len() > 0 {
+                            let field = &fields[arr[0]];
+                            query_builder.push(fields[arr[0]].name.as_str()).push(" = ");
+                            datatype::query_push_bind(
+                                &mut query_builder,
+                                datas[arr[0]].to_owned().unwrap().as_str(),
+                                &field.r#type,
+                            );
+                            let arr = &arr[1..];
+                            for i in arr {
+                                let field = &fields[i.to_owned()];
+                                query_builder
+                                    .push(" AND ")
+                                    .push(field.name.as_str())
+                                    .push(" = ");
+                                datatype::query_push_bind(
+                                    &mut query_builder,
+                                    datas[*i].to_owned().unwrap().as_str(),
+                                    &field.r#type,
+                                );
+                            }
+                        }
+                        // tracing::debug!("SQL 构建完毕");
+                        let query = query_builder.build();
+                        use sqlx::Execute;
+                        let sql = query.sql();
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            return;
+                        }
+                        let pool = pool.unwrap();
+                        if let Err(e) = match query.execute(&pool).await {
+                            Ok(res) => {
+                                let msg = format!("更新了 {} 行", res.rows_affected());
+                                tracing::info!(msg);
+                                s.send(message::Response::Delete {
+                                    n: res.rows_affected(),
+                                    msg: msg,
+                                    sql: sql.to_string(),
+                                })
+                            }
+                            Err(e) => {
+                                let msg = format!("更新失败：{}", e);
+                                tracing::error!(msg);
+                                s.send(message::Response::Update {
+                                    n: 0,
+                                    msg: msg,
+                                    sql: sql.to_string(),
+                                })
+                            }
+                        } {
+                            tracing::error!("返回更新结果失败：{}", e);
                         }
                     }
                 };

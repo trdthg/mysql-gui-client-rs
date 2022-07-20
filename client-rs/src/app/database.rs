@@ -366,6 +366,13 @@ impl DataBase {
                         self.table.refresh();
                     }
                 }
+                message::Response::Update { n, msg, sql } => {
+                    if n == 0 {
+                        self.table.show_msg(msg);
+                    } else {
+                        self.table.refresh();
+                    }
+                }
             }
         }
     }

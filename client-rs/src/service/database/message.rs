@@ -27,6 +27,15 @@ pub enum Message {
         fields: Box<Vec<Field>>,
         datas: Box<Vec<Option<String>>>,
     },
+    Update {
+        conn: String,
+        db: String,
+        table: String,
+        fields: Box<Vec<Field>>,
+        datas: Box<Vec<Option<String>>>,
+        new_data_index: usize,
+        new_data: Box<Option<String>>,
+    },
 }
 
 pub enum SelectType {
@@ -68,6 +77,11 @@ pub enum Response {
         sql: String,
     },
     Insert {
+        n: u64,
+        msg: String,
+        sql: String,
+    },
+    Update {
         n: u64,
         msg: String,
         sql: String,

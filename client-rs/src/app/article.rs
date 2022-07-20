@@ -42,7 +42,7 @@ impl eframe::App for Article {
 
         egui::panel::CentralPanel::default().show(ctx, |ui| {
             if self.articles.is_empty() {
-                ui.centered_and_justified(|ui| ui.spinner());
+                ui.centered_and_justified(|ui| ui.heading("Loading..."));
                 return;
             }
             self.render_articles(ui);
