@@ -352,7 +352,14 @@ impl DataBase {
                     });
                     self.table.update_content(meta);
                 }
-                message::Response::Delete { n, msg } => {
+                message::Response::Delete { n, msg, sql } => {
+                    if n == 0 {
+                        self.table.show_msg(msg);
+                    } else {
+                        self.table.refresh();
+                    }
+                }
+                message::Response::Insert { n, msg, sql } => {
                     if n == 0 {
                         self.table.show_msg(msg);
                     } else {

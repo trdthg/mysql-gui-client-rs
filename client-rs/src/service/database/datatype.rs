@@ -371,12 +371,17 @@ macro_rules! datacell_to_string {
             )*
         }
 
-        pub fn sql_push_bind(sql: &mut sqlx::QueryBuilder<'_, sqlx::MySql>, s: &str, t: &DataType)
-        {
+        pub fn query_push_bind(sql: &mut sqlx::QueryBuilder<'_, sqlx::MySql>, s: &str, t: &DataType)
+         -> Result<(), String>{
             match t {
                 $(
                     $Variant! { datatype_match_pattern } => {
-                        sql.push_bind(<$Variant!(datatype_basictype)>::from_str(s).unwrap());
+                        // dbg!(s);
+                        if let Some(arg) = <$Variant!(datatype_basictype)>::from_str(s).ok() {
+                            sql.push_bind(arg);
+                        } else {
+                            return Err(format!("输入: {} 不能被转换为合法的参数", s))
+                        }
                     }
                 )*
                 // DataType::TinyInt => sql.push_bind(i32::from_str(s).unwrap()),
@@ -396,6 +401,7 @@ macro_rules! datacell_to_string {
                 // DataType::Unknown => todo!(),
                 // DataType::Text => todo!(),
             }
+            Ok(())
         }
 
         impl DataCell {

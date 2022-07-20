@@ -99,8 +99,9 @@ impl EditCtl {
 }
 
 impl Table {
-    pub fn refresh(&self) {
+    pub fn refresh(&mut self) {
         if let Some(meta) = self.meta.as_ref() {
+            self.editctl.adding_new_row = false;
             let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
             let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
             let sql =
@@ -177,7 +178,7 @@ impl Table {
                         r#type: message::SelectType::Customed,
                         sql: self.code_editor.input.to_owned(),
                     }) {
-                        tracing::error!("后台服务连接断开：{}", e);
+                        tracing::error!("自定义查询请求失败，后台服务连接断开：{}", e);
                     }
                 }
             }
@@ -209,11 +210,21 @@ impl Table {
 
                 if ui.button("新增").clicked() {
                     // 当前处于编辑状态就置空
-                    if self.editctl.adding_new_row == true {
-                        self.editctl
-                            .input_caches
-                            .iter_mut()
-                            .for_each(|x| *x = Some(String::new()));
+                    // 初始化
+                    if let Some(meta) = &self.meta {
+                        if self.editctl.adding_new_row == true {
+                            self.editctl
+                                .input_caches
+                                .iter_mut()
+                                .enumerate()
+                                .for_each(|(i, x)| {
+                                    if meta.fields[i].is_nullable == false {
+                                        *x = Some(String::new());
+                                    } else {
+                                        *x = None;
+                                    }
+                                });
+                        }
                     }
                     // toggle
                     self.editctl.adding_new_row = !self.editctl.adding_new_row;
@@ -308,7 +319,7 @@ impl Table {
 
 impl Table {
     pub fn update_content(&mut self, meta: Box<TableMeta>) {
-        self.editctl.input_caches = Box::new(vec![Some(String::new()); meta.fields.len()]);
+        self.editctl.input_caches = Box::new(vec![None; meta.fields.len()]);
         self.meta = Some(meta);
     }
 
@@ -394,21 +405,36 @@ impl Table {
                         row.col(|ui| {
                             // TODO!
                             if ui.button("保存").clicked() {
-                                // if let Err(e) = self.s.send(message::Message::Insert {}) {
-                                //     tracing::error!("后台挂了？ {}", e);
-                                // }
+                                if let Some(meta) = &self.meta {
+                                    if let Err(e) = self.s.send(message::Message::Insert {
+                                        conn: meta.conn_name.to_owned(),
+                                        db: meta.db_name.to_owned(),
+                                        table: meta.table_name.to_owned(),
+                                        fields: meta.fields.to_owned(),
+                                        datas: self.editctl.input_caches.clone(),
+                                    }) {
+                                        tracing::error!("新增请求发送失败，后台挂了？ {}", e);
+                                    }
+                                }
                             };
                         });
                         for i in 0..col_len {
-                            tracing::info!("{} ", self.editctl.input_caches.len());
+                            // tracing::info!("{} ", self.editctl.input_caches.len());
                             row.col(|ui| {
                                 if let Some(s) = self.editctl.input_caches[i].as_mut() {
-                                    let response = ui.text_edit_singleline(s);
-                                    response.context_menu(|ui| {
+                                    // let response = ui.text_edit_singleline(s);
+                                    let response = egui::TextEdit::singleline(s)
+                                        .desired_width(f32::INFINITY)
+                                        .show(ui);
+                                    response.response.context_menu(|ui| {
                                         // 新增是置空
-                                        if ui.button("置空").clicked() {
-                                            self.editctl.input_caches[i].take();
-                                            ui.close_menu();
+                                        if meta.fields[i].is_nullable == true {
+                                            if ui.button("置空").clicked() {
+                                                self.editctl.input_caches[i].take();
+                                                ui.close_menu();
+                                            }
+                                        } else {
+                                            if ui.button("该列不能置空").clicked() {};
                                         }
                                     });
                                 } else {

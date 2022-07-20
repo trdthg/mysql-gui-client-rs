@@ -5,7 +5,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use sqlx::prelude::*;
+use sqlx::{prelude::*, Execute};
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -162,8 +162,8 @@ impl Server for DatabaseServer {
                         fields,
                         datas,
                     } => {
-                        //
-                        let mut sql =
+                        // tracing::debug!("SQL 构建完毕");
+                        let mut query_builder =
                             sqlx::QueryBuilder::new(format!("delete from {}.{} where ", db, table));
                         let mut arr = vec![];
                         for (i, field) in fields.iter().enumerate() {
@@ -173,57 +173,139 @@ impl Server for DatabaseServer {
                         }
 
                         if arr.len() > 0 {
-                            let n =
-                                i32::from_str(datas[arr[0]].to_owned().unwrap().as_str()).unwrap();
-
                             let field = &fields[arr[0]];
-                            // let n = a(datas[arr[0]].to_owned().unwrap().as_str(), field.r#type)
-                            // i32::from_str(datas[arr[0]].to_owned().unwrap().as_str()).unwrap();
-                            sql.push(fields[arr[0]].name.as_str()).push(" = ");
-                            datatype::sql_push_bind(
-                                &mut sql,
+                            query_builder.push(fields[arr[0]].name.as_str()).push(" = ");
+                            datatype::query_push_bind(
+                                &mut query_builder,
                                 datas[arr[0]].to_owned().unwrap().as_str(),
                                 &field.r#type,
                             );
-
-                            tracing::info!("{}", datas[arr[0]].to_owned().unwrap().to_string());
                             let arr = &arr[1..];
                             for i in arr {
                                 let field = &fields[i.to_owned()];
-                                sql.push(" AND ").push(field.name.as_str()).push(" = ");
-                                // .push_bind(datas[*i].to_owned());
-                                datatype::sql_push_bind(
-                                    &mut sql,
+                                query_builder
+                                    .push(" AND ")
+                                    .push(field.name.as_str())
+                                    .push(" = ");
+                                datatype::query_push_bind(
+                                    &mut query_builder,
                                     datas[*i].to_owned().unwrap().as_str(),
                                     &field.r#type,
                                 );
-                                tracing::info!("{}", datas[*i].to_owned().unwrap().to_string());
                             }
                         }
-                        tracing::info!("SQL 构建完毕");
-                        let sql = sql.build();
+                        // tracing::debug!("SQL 构建完毕");
+                        let query = query_builder.build();
+                        use sqlx::Execute;
+                        let sql = query.sql();
                         let pool = conns.get_pool(conn.as_str()).await;
                         if pool.is_none() {
                             tracing::error!("获取数据库连接失败");
                             return;
                         }
                         let pool = pool.unwrap();
-                        if let Err(e) = match sql.execute(&pool).await {
+                        if let Err(e) = match query.execute(&pool).await {
                             Ok(res) => {
                                 let msg = format!("删除了 {} 行", res.rows_affected());
                                 tracing::info!(msg);
                                 s.send(message::Response::Delete {
                                     n: res.rows_affected(),
                                     msg: msg,
+                                    sql: sql.to_string(),
                                 })
                             }
                             Err(e) => {
                                 let msg = format!("删除失败：{}", e);
                                 tracing::error!(msg);
-                                s.send(message::Response::Delete { n: 0, msg: msg })
+                                s.send(message::Response::Delete {
+                                    n: 0,
+                                    msg: msg,
+                                    sql: sql.to_string(),
+                                })
                             }
                         } {
-                            tracing::error!("返回删除结果：{}", e);
+                            tracing::error!("返回删除结果失败：{}", e);
+                        }
+                    }
+                    Message::Insert {
+                        conn,
+                        db,
+                        table,
+                        fields,
+                        datas,
+                    } => {
+                        let mut query_builder =
+                            sqlx::QueryBuilder::new(format!("insert into {}.{} (", db, table));
+                        let mut arr = vec![];
+                        for (i, field) in fields.iter().enumerate() {
+                            dbg!(datas[i].clone());
+                            if datas[i].is_some() {
+                                arr.push(i)
+                            }
+                        }
+                        for (i, col_index) in arr.iter().enumerate() {
+                            let field = &fields[*col_index];
+                            query_builder.push(field.name.as_str());
+                            if i != arr.len() - 1 {
+                                query_builder.push(", ");
+                            }
+                        }
+                        query_builder.push(" ) VALUES ( ");
+                        for (i, col_index) in arr.iter().enumerate() {
+                            if let Err(e) = datatype::query_push_bind(
+                                &mut query_builder,
+                                datas[*col_index].to_owned().unwrap().as_str(),
+                                &fields[*col_index].r#type,
+                            ) {
+                                let msg = format!("构建 Insert 语句失败: {}", e);
+                                tracing::error!("{}", msg);
+                                if let Err(e) = s.send(message::Response::Insert {
+                                    n: 0,
+                                    msg,
+                                    sql: String::new(),
+                                }) {
+                                    tracing::error!("返回插入构建失败失败: {}", e);
+                                }
+                                continue;
+                            } else {
+                                if i != arr.len() - 1 {
+                                    query_builder.push(", ");
+                                }
+                            }
+                        }
+                        query_builder.push(" )");
+                        let query = query_builder.build();
+                        tracing::info!("SQL 构建完毕");
+
+                        let sql = query.sql();
+                        // tracing::info!("{}", sql);
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            return;
+                        }
+                        let pool = pool.unwrap();
+                        if let Err(e) = match query.execute(&pool).await {
+                            Ok(res) => {
+                                let msg = format!("插入了 {} 行", res.rows_affected());
+                                tracing::info!(msg);
+                                s.send(message::Response::Insert {
+                                    n: res.rows_affected(),
+                                    msg,
+                                    sql: sql.to_string(),
+                                })
+                            }
+                            Err(e) => {
+                                let msg = format!("插入失败：{}", e);
+                                tracing::error!(msg);
+                                s.send(message::Response::Insert {
+                                    n: 0,
+                                    msg,
+                                    sql: sql.to_string(),
+                                })
+                            }
+                        } {
+                            tracing::error!("返回插入结果失败：{}", e);
                         }
                     }
                 };
