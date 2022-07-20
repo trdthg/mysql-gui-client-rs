@@ -1,4 +1,7 @@
-use eframe::egui::{self, Button, Context, Layout, RichText, TopBottomPanel};
+use eframe::{
+    egui::{self, Button, Context, Layout, RichText, TopBottomPanel},
+    emath::Vec2,
+};
 mod article;
 mod component;
 pub mod database;
@@ -6,7 +9,7 @@ mod setting;
 mod talk;
 mod test;
 
-use crate::{config::Config, service::Repo};
+use crate::{backend::Repo, config::Config};
 
 use self::{article::Article, database::DataBase, setting::Setting, test::Test};
 
@@ -20,8 +23,8 @@ pub struct State {
 }
 impl State {
     pub fn new(repo: Repo) -> Self {
-        let database = DataBase::new(repo.conn_manager);
-        let article = Article::new(repo.article);
+        let database = DataBase::new(repo.database_client);
+        let article = Article::new(repo.article_client);
         let setting = Setting::new(Config::new());
         let test = Default::default();
         Self {
@@ -58,12 +61,12 @@ impl eframe::App for App {
 }
 
 impl App {
-    pub fn new(repo: Repo) -> Self {
-        let state = State::new(repo);
-        Self {
-            state,
-            config: Config::new(),
-        }
+    pub fn run(self) -> ! {
+        let mut options = eframe::NativeOptions::default();
+        options.resizable = true;
+        options.vsync = true;
+        options.initial_window_size = Some(Vec2::new(480.0, 740.0));
+        eframe::run_native("My App", options, Box::new(|_cc| Box::new(self)));
     }
 
     fn save_config(&self, config: Config) -> Result<(), confy::ConfyError> {

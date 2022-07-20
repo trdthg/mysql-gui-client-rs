@@ -1,4 +1,4 @@
-use crate::app::database::{Databases, Field, TableRows, Tables};
+use crate::frontend::database::{Databases, Field, TableRows, Tables};
 
 pub enum Message {
     Connect {

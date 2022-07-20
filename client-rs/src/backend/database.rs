@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use sqlx::{prelude::*, Execute};
@@ -14,7 +10,7 @@ pub mod datatype;
 pub mod message;
 pub mod sqls;
 
-use crate::app::database::{ColumnKey, Field, TableRows, DB};
+use crate::frontend::database::{ColumnKey, Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
@@ -175,11 +171,19 @@ impl Server for DatabaseServer {
                         if arr.len() > 0 {
                             let field = &fields[arr[0]];
                             query_builder.push(fields[arr[0]].name.as_str()).push(" = ");
-                            datatype::query_push_bind(
+                            if let Err(e) = datatype::query_push_bind(
                                 &mut query_builder,
-                                datas[arr[0]].to_owned().unwrap().as_str(),
+                                datas[arr[0]].as_deref().unwrap(),
                                 &field.r#type,
-                            );
+                            ) {
+                                if let Err(e) = s.send(message::Response::Delete {
+                                    n: 0,
+                                    msg: format!("构造 DELETE 语句失败：{}", e),
+                                    sql: "".to_string(),
+                                }) {
+                                    tracing::error!("发送删除结果失败：{}", e);
+                                }
+                            }
                             let arr = &arr[1..];
                             for i in arr {
                                 let field = &fields[i.to_owned()];
@@ -187,11 +191,19 @@ impl Server for DatabaseServer {
                                     .push(" AND ")
                                     .push(field.name.as_str())
                                     .push(" = ");
-                                datatype::query_push_bind(
+                                if let Err(e) = datatype::query_push_bind(
                                     &mut query_builder,
-                                    datas[*i].to_owned().unwrap().as_str(),
+                                    datas[*i].as_deref().unwrap(),
                                     &field.r#type,
-                                );
+                                ) {
+                                    if let Err(e) = s.send(message::Response::Delete {
+                                        n: 0,
+                                        msg: format!("构造 DELETE 语句失败：{}", e),
+                                        sql: "".to_string(),
+                                    }) {
+                                        tracing::error!("发送删除结果失败：{}", e);
+                                    }
+                                }
                             }
                         }
                         // tracing::debug!("SQL 构建完毕");
@@ -236,13 +248,15 @@ impl Server for DatabaseServer {
                     } => {
                         let mut query_builder =
                             sqlx::QueryBuilder::new(format!("insert into {}.{} (", db, table));
+
+                        // 找到不为空的参数的索引
                         let mut arr = vec![];
-                        for (i, field) in fields.iter().enumerate() {
-                            dbg!(datas[i].clone());
+                        for i in 0..fields.len() {
                             if datas[i].is_some() {
                                 arr.push(i)
                             }
                         }
+
                         for (i, col_index) in arr.iter().enumerate() {
                             let field = &fields[*col_index];
                             query_builder.push(field.name.as_str());
@@ -379,7 +393,7 @@ impl Server for DatabaseServer {
                                 tracing::info!(msg);
                                 s.send(message::Response::Delete {
                                     n: res.rows_affected(),
-                                    msg: msg,
+                                    msg,
                                     sql: sql.to_string(),
                                 })
                             }
@@ -639,7 +653,6 @@ mod test {
         //     .unwrap();
         let sql = "select * from zqm_musics;";
 
-        use sqlx::mysql::MySqlTypeInfo;
         use sqlx::Column;
         use sqlx::Row;
         use sqlx::Type;
@@ -649,7 +662,7 @@ mod test {
         for i in 0..columns.len() {
             let col = columns.get(i).unwrap();
             let type_info = col.type_info();
-            println!("{:#?} {:#?}", col.name(), type_info.to_string());
+            println!("{:#?} {:#?}", col.name(), type_info.name());
         }
     }
 
@@ -659,7 +672,6 @@ mod test {
         let conn = sqlx::MySqlPool::connect(url).await.unwrap();
         let sql = "show databases;";
 
-        use sqlx::mysql::MySqlTypeInfo;
         use sqlx::Column;
         use sqlx::Row;
         use sqlx::Type;
@@ -669,7 +681,7 @@ mod test {
         for i in 0..columns.len() {
             let col = columns.get(i).unwrap();
             let type_info = col.type_info();
-            println!("{:#?} {:#?}", col.name(), type_info.to_string());
+            println!("{:#?} {:#?}", col.name(), type_info.name());
         }
     }
 }

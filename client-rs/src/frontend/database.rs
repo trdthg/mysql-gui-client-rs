@@ -1,6 +1,6 @@
 mod config_new_conn;
 mod table;
-use crate::service::database::{datatype::DataType, message, sqls, DatabaseClient};
+use crate::backend::database::{datatype::DataType, message, sqls, DatabaseClient};
 use eframe::{
     egui::{self, RichText, ScrollArea},
     epaint::Color32,

@@ -4,7 +4,7 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{app::database, service::database::message};
+use crate::{backend::database::message, frontend::database};
 
 #[derive(Default)]
 pub struct ConfigNewConnWindow {

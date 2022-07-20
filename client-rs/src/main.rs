@@ -1,27 +1,42 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod app;
+mod backend;
 mod config;
-mod service;
+mod frontend;
 mod theme;
 mod util;
 
-use app::App;
-use eframe::emath::Vec2;
-use service::Backend;
+use backend::{article, database, Backend, Repo};
+use config::Config;
+use frontend::{App, State};
 use tracing::Level;
+
+pub fn new() -> (Backend, App) {
+    let (article_consumer, article_producer) = article::make_service();
+    let (sql_sender, sql_executor) = database::make_service();
+    let repo = Repo {
+        article_client: article_consumer,
+        database_client: sql_sender,
+    };
+    let servers = vec![article_producer, sql_executor];
+
+    (
+        Backend { servers },
+        App {
+            state: State::new(repo),
+            config: Config::new(),
+        },
+    )
+}
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
 
-    let (server, repo) = Backend::new();
-    server.run();
-    let app = App::new(repo);
-    let mut options = eframe::NativeOptions::default();
-    options.resizable = true;
-    options.vsync = true;
-    options.initial_window_size = Some(Vec2::new(480.0, 740.0));
-    eframe::run_native("My App", options, Box::new(|_cc| Box::new(app)));
+    let (backend, frontend) = new();
+    std::thread::spawn(move || {
+        backend.run();
+    });
+    frontend.run()
 }
