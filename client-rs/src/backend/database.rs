@@ -10,7 +10,7 @@ pub mod datatype;
 pub mod message;
 pub mod sqls;
 
-use crate::frontend::database::{ColumnKey, Field, TableRows, DB};
+use crate::frontend::database::types::{ColumnKey, Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
@@ -28,11 +28,11 @@ pub struct Conns {
 
 struct Conn {
     conn: sqlx::MySqlPool,
-    dbs: Vec<String>,
+    _dbs: Vec<String>,
 }
 impl Conn {
     pub fn new(conn: sqlx::Pool<sqlx::MySql>) -> Self {
-        Self { conn, dbs: vec![] }
+        Self { conn, _dbs: vec![] }
     }
 }
 
@@ -478,10 +478,7 @@ async fn handle_select(
                     (name.clone(), DB { name, tables: None })
                 })
                 .collect();
-            s.send(message::Response::Databases {
-                conn,
-                data: Box::new(metas),
-            })
+            s.send(message::Response::Databases { conn, data: metas })
         }
         SelectType::Tables => {
             tracing::info!("查询数量 {}", rows.len());
@@ -568,7 +565,6 @@ async fn handle_select(
                     let field_name = field.name();
                     let field_type = DataType::from_uppercase(field.type_info().name());
                     for (i, row) in rows.iter().enumerate() {
-                        // TODO! 如何判断能不能为空？
                         let cell = DataCell::from_mysql_row(&row, col, &field_type, true);
                         datas[i].push(cell.to_string());
                     }
@@ -588,6 +584,7 @@ async fn handle_select(
     }
 }
 
+#[allow(unused)]
 #[cfg(test)]
 mod test {
 

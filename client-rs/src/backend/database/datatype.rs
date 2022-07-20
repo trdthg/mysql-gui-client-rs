@@ -1,9 +1,44 @@
+// |---------------------------------------|------------------------------------------------------|
+// | `bool`                                | TINYINT(1), BOOLEAN                                  |
+// | `i8`                                  | TINYINT                                              |
+// | `i16`                                 | SMALLINT                                             |
+// | `i32`                                 | INT                                                  |
+// | `i64`                                 | BIGINT                                               |
+// | `u8`                                  | TINYINT UNSIGNED                                     |
+// | `u16`                                 | SMALLINT UNSIGNED                                    |
+// | `u32`                                 | INT UNSIGNED                                         |
+// | `u64`                                 | BIGINT UNSIGNED                                      |
+// | `f32`                                 | FLOAT                                                |
+// | `f64`                                 | DOUBLE                                               |
+// | `&str`, [`String`]                    | VARCHAR, CHAR, TEXT                                  |
+// | `&[u8]`, `Vec<u8>`                    | VARBINARY, BINARY, BLOB                              |
+// |---------------------------------------|------------------------------------------------------|
+// | `chrono::DateTime<Utc>`               | TIMESTAMP                                            |
+// | `chrono::DateTime<Local>`             | TIMESTAMP                                            |
+// | `chrono::NaiveDateTime`               | DATETIME                                             |
+// | `chrono::NaiveDate`                   | DATE                                                 |
+// | `chrono::NaiveTime`                   | TIME                                                 |
+// |---------------------------------------|------------------------------------------------------|
+// | `time::PrimitiveDateTime`             | DATETIME                                             |
+// | `time::OffsetDateTime`                | TIMESTAMP                                            |
+// | `time::Date`                          | DATE                                                 |
+// | `time::Time`                          | TIME                                                 |
+// |---------------------------------------|------------------------------------------------------|
+// | `rust_decimal::Decimal`               | DECIMAL                                              |
+// |---------------------------------------|------------------------------------------------------|
+// | `uuid::Uuid`                          | BYTE(16), VARCHAR, CHAR, TEXT                        |
+// | `uuid::fmt::Hyphenated`               | CHAR(36)                                             |
+// |---------------------------------------|------------------------------------------------------|
+// | `json::JsonValue`             | JSON
+
 use rust_decimal::Decimal;
 
 #[derive(Debug, Clone)]
 pub enum DataType {
     // i8
     TinyInt,
+    // bit
+    Bit,
     // i16
     SmallInt,
     // i32
@@ -49,7 +84,17 @@ pub(crate) use datatype_basictype;
 pub(crate) use datatype_match_pattern;
 pub(crate) use datatype_name;
 
-/// Association information for `Boolean` logical type.
+macro_rules! bit {
+    ($macro:ident) => {
+        $macro! {
+            DataType::Bit,
+            Bit,
+            u8
+        }
+    };
+}
+pub(crate) use bit;
+
 macro_rules! boolean {
     ($macro:ident) => {
         $macro! {
@@ -229,6 +274,7 @@ macro_rules! unknown {
 impl DataType {
     pub fn get_default_width(&self) -> f32 {
         match self {
+            DataType::Bit => 25.,
             DataType::TinyInt => 50.,
             DataType::SmallInt => 50.,
             DataType::Integer => 60.,
@@ -247,65 +293,39 @@ impl DataType {
             DataType::Unknown => 50.,
         }
     }
-    // |---------------------------------------|------------------------------------------------------|
-    // | `bool`                                | TINYINT(1), BOOLEAN                                  |
-    // | `i8`                                  | TINYINT                                              |
-    // | `i16`                                 | SMALLINT                                             |
-    // | `i32`                                 | INT                                                  |
-    // | `i64`                                 | BIGINT                                               |
-    // | `u8`                                  | TINYINT UNSIGNED                                     |
-    // | `u16`                                 | SMALLINT UNSIGNED                                    |
-    // | `u32`                                 | INT UNSIGNED                                         |
-    // | `u64`                                 | BIGINT UNSIGNED                                      |
-    // | `f32`                                 | FLOAT                                                |
-    // | `f64`                                 | DOUBLE                                               |
-    // | `&str`, [`String`]                    | VARCHAR, CHAR, TEXT                                  |
-    // | `&[u8]`, `Vec<u8>`                    | VARBINARY, BINARY, BLOB                              |
-    // |---------------------------------------|------------------------------------------------------|
-    // | `chrono::DateTime<Utc>`               | TIMESTAMP                                            |
-    // | `chrono::DateTime<Local>`             | TIMESTAMP                                            |
-    // | `chrono::NaiveDateTime`               | DATETIME                                             |
-    // | `chrono::NaiveDate`                   | DATE                                                 |
-    // | `chrono::NaiveTime`                   | TIME                                                 |
-    // |---------------------------------------|------------------------------------------------------|
-    // | `time::PrimitiveDateTime`             | DATETIME                                             |
-    // | `time::OffsetDateTime`                | TIMESTAMP                                            |
-    // | `time::Date`                          | DATE                                                 |
-    // | `time::Time`                          | TIME                                                 |
-    // |---------------------------------------|------------------------------------------------------|
-    // | `rust_decimal::Decimal`               | DECIMAL                                              |
-    // |---------------------------------------|------------------------------------------------------|
-    // | `uuid::Uuid`                          | BYTE(16), VARCHAR, CHAR, TEXT                        |
-    // | `uuid::fmt::Hyphenated`               | CHAR(36)                                             |
-    // |---------------------------------------|------------------------------------------------------|
-    // | `json::JsonValue`             | JSON
 
     pub(crate) fn from_uppercase(name: &str) -> Self {
         match name {
-            "BOOLEAN" => DataType::Boolean,
+            "BIT" => DataType::Bit,
             "TINYINT" => DataType::TinyInt,
             "SMALLINT" => DataType::SmallInt,
             "INT" => DataType::Integer,
             "BIGINT" => DataType::BigInt,
+
             "FLOAT" => DataType::Float,
             "DOUBLE" => DataType::Double,
-            "CHAR" => DataType::Char { width: 10 },
-            "VARCHAR" => DataType::Varchar,
-            "TEXT" => DataType::Text,
-            "DATETIME" => DataType::DateTime,
-            "DATE" => DataType::Date,
-            "TIME" => DataType::Time,
-            "TIMESTAMP" => DataType::TimeStamp,
             "DECIMAL" => DataType::Decimal {
                 scale: 6,
                 precision: 2,
             },
+
+            "CHAR" => DataType::Char { width: 10 },
+            "VARCHAR" => DataType::Varchar,
+            "TEXT" => DataType::Text,
+
+            "BOOLEAN" => DataType::Boolean,
+
+            "DATETIME" => DataType::DateTime,
+            "DATE" => DataType::Date,
+            "TIME" => DataType::Time,
+            "TIMESTAMP" => DataType::TimeStamp,
             _ => DataType::Unknown,
         }
     }
 
     pub(crate) fn from_field(field: &FieldMeta) -> Self {
         match field.data_type.as_str() {
+            "bit" => DataType::Bit,
             "tinyint" => DataType::TinyInt,
             "smallint" => DataType::SmallInt,
             "int" => DataType::Integer,
@@ -313,17 +333,19 @@ impl DataType {
 
             "float" => DataType::Float,
             "double" => DataType::Double,
+            "decimal" => DataType::Decimal {
+                scale: field.numeric_precision.unwrap(),
+                precision: field.numeric_scale.unwrap(),
+            },
 
             "varchar" => DataType::Varchar,
             "char" => DataType::Char {
                 width: field.character_maximum_length.unwrap(),
             },
             "text" => DataType::Text,
-            "decimal" => DataType::Decimal {
-                scale: field.numeric_precision.unwrap(),
-                precision: field.numeric_scale.unwrap(),
-            },
-            "bool" | "bit" => DataType::Boolean,
+
+            "bool" => DataType::Boolean,
+
             "date" => DataType::Date,
             "time" => DataType::Time,
             "datetime" => DataType::DateTime,
@@ -337,6 +359,7 @@ impl DataType {
 
     pub(crate) fn to_string(&self) -> String {
         match self {
+            DataType::Bit => "bit".to_string(),
             DataType::TinyInt => "tinyint".to_string(),
             DataType::SmallInt => "smallint".to_string(),
             DataType::Integer => "int".to_string(),
@@ -354,7 +377,7 @@ impl DataType {
             DataType::Time => "time".to_string(),
             DataType::DateTime => "datetime".to_string(),
             DataType::TimeStamp => "timestamp".to_string(),
-            _ => "unknown".to_string(),
+            DataType::Unknown => "unknown".to_string(),
         }
     }
 }
@@ -380,26 +403,10 @@ macro_rules! datacell_to_string {
                         if let Some(arg) = <$Variant!(datatype_basictype)>::from_str(s).ok() {
                             sql.push_bind(arg);
                         } else {
-                            return Err(format!("输入: {} 不能被转换为合法的参数", s))
+                            return Err(format!("输入：{} 不能被转换为合法的参数", s))
                         }
                     }
                 )*
-                // DataType::TinyInt => sql.push_bind(i32::from_str(s).unwrap()),
-                // DataType::SmallInt => todo!(),
-                // DataType::Integer => todo!(),
-                // DataType::BigInt => todo!(),
-                // DataType::Varchar => todo!(),
-                // DataType::Char { width } => todo!(),
-                // DataType::Boolean => todo!(),
-                // DataType::Float => todo!(),
-                // DataType::Double => todo!(),
-                // DataType::Decimal { scale, precision } => todo!(),
-                // DataType::Date => todo!(),
-                // DataType::Time => todo!(),
-                // DataType::DateTime => todo!(),
-                // DataType::TimeStamp => todo!(),
-                // DataType::Unknown => todo!(),
-                // DataType::Text => todo!(),
             }
             Ok(())
         }
@@ -443,6 +450,7 @@ macro_rules! get_all_datatype {
         $macro! {
             [],
             { int8, TinyInt },
+            { bit, Bit },
             { int16, SmallInt },
             { int32, Integer },
             { int64, BigInt},

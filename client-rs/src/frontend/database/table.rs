@@ -1,16 +1,15 @@
 use eframe::{
-    egui::{self, Context, ScrollArea},
+    egui::{self, ScrollArea},
     epaint::Color32,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::backend::database::{message, sqls};
 
-use super::{ColumnKey, Conns, Field, TableRows};
+use super::types::{Field, TableRows};
 
 pub struct Table {
     s: UnboundedSender<message::Message>,
-    count: bool,
     meta: Option<Box<TableMeta>>,
     code_editor: CodeEditor,
     tablectl: TableCtl,
@@ -20,7 +19,6 @@ pub struct Table {
 impl Table {
     pub fn new(s: UnboundedSender<message::Message>) -> Self {
         Self {
-            count: true,
             editctl: EditCtl::new(),
             meta: None,
             code_editor: CodeEditor::new(),
@@ -29,98 +27,7 @@ impl Table {
         }
     }
 
-    pub fn update_sql(&mut self, sql: &str) {
-        self.code_editor.input = sql.to_owned()
-    }
-
-    pub fn show_msg(&self, msg: String) {
-        // self
-    }
-}
-
-pub struct TableCtl {
-    page: String,
-    size: String,
-    filter: String,
-}
-impl TableCtl {
-    pub fn new() -> Self {
-        Self {
-            page: String::from("0"),
-            size: String::from("100"),
-            filter: String::new(),
-        }
-    }
-}
-
-pub struct CodeEditor {
-    input: String,
-    chosed_conn: Option<String>,
-    chosed_db: Option<String>,
-    tree: Option<Conns>,
-}
-impl CodeEditor {
-    pub fn new() -> Self {
-        Self {
-            input: String::new(),
-            chosed_conn: None,
-            chosed_db: None,
-            tree: None,
-        }
-    }
-}
-
-pub struct TableMeta {
-    pub conn_name: String,
-    pub db_name: String,
-    pub table_name: String,
-    pub fields: Box<Vec<Field>>,
-    pub datas: TableRows,
-}
-
-struct EditCtl {
-    select_row: Option<usize>,
-    selected_cell: Option<usize>,
-    input_cache: String,
-    input_caches: Box<Vec<Option<String>>>,
-    adding_new_row: bool,
-}
-
-impl EditCtl {
-    pub fn new() -> Self {
-        Self {
-            input_cache: String::new(),
-            select_row: None,
-            selected_cell: None,
-            input_caches: Box::new(vec![]),
-            adding_new_row: false,
-        }
-    }
-}
-
-impl Table {
-    pub fn refresh(&mut self) {
-        if let Some(meta) = self.meta.as_ref() {
-            self.editctl.select_row = None;
-            self.editctl.adding_new_row = false;
-            let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let sql =
-                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
-            if let Err(e) = self.s.send(message::Message::Select {
-                conn: meta.conn_name.to_owned(),
-                db: Some(meta.db_name.to_owned()),
-                table: Some(meta.table_name.to_owned()),
-                fields: Some(meta.fields.to_owned()),
-                r#type: message::SelectType::Table,
-                sql,
-            }) {
-                tracing::error!("翻页请求失败：{}", e);
-            }
-        }
-    }
-    // https://juejin.cn/post/6920043290385448974#3__68
-    pub fn update(&mut self, ui: &mut egui::Ui) {
+    fn render_sql_editor(&mut self, ui: &mut egui::Ui) {
         // 辅助信息
         egui::menu::bar(ui, |ui| {
             let current_conn = ui.label("连接");
@@ -132,42 +39,23 @@ impl Table {
                 })
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.code_editor.chosed_conn, None, "None");
-                    if let Some(tree) = &self.code_editor.tree {
-                        for conn in tree.keys() {
-                            ui.selectable_value(
-                                &mut self.code_editor.chosed_conn,
-                                Some(conn.to_string()),
-                                conn,
-                            );
-                        }
+                    for conn in &self.code_editor.avaliable_conns {
+                        ui.selectable_value(
+                            &mut self.code_editor.chosed_conn,
+                            Some(conn.to_string()),
+                            conn,
+                        );
                     }
                 });
+            // if let Some(meta) = &self.meta {
+            //     ui.label(RichText::new(format!(
+            //         "当前连接：{}.{}",
+            //         meta.conn_name, meta.db_name
+            //     )));
+            // } else {
+            //     ui.label("没有选择连接");
+            // }
 
-            let current_db = ui.label("数据库");
-            egui::ComboBox::from_id_source(current_db.id)
-                .selected_text(match &self.code_editor.chosed_db {
-                    Some(db_name) => db_name.as_str(),
-                    None => "None",
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.code_editor.chosed_db, None, "None");
-                    let chosed_conn = self.code_editor.chosed_conn.to_owned().unwrap_or_default();
-                    if let Some(dbs) = self
-                        .code_editor
-                        .tree
-                        .as_ref()
-                        .and_then(|tree| tree.get(&chosed_conn))
-                        .and_then(|conn| conn.databases.as_ref())
-                    {
-                        for db in dbs.keys() {
-                            ui.selectable_value(
-                                &mut self.code_editor.chosed_db,
-                                Some(db.to_string()),
-                                db,
-                            );
-                        }
-                    }
-                });
             if ui.button("执行 ▶").clicked() {
                 // ◀
                 if let Some(conn) = &self.code_editor.chosed_conn {
@@ -200,14 +88,36 @@ impl Table {
             ui.label("Selected text: ");
             ui.monospace(selected_text);
         }
+    }
 
-        // 表格控制区
+    fn render_toolbar(&mut self, ui: &mut egui::Ui) {
         egui::menu::bar(ui, |ui| {
             ui.horizontal(|ui| {
-                egui::TextEdit::singleline(&mut self.tablectl.filter)
+                // 过滤器
+                let filter_output = egui::TextEdit::singleline(&mut self.tablectl.filter)
                     .hint_text("过滤")
                     .desired_width(100.)
                     .show(ui);
+                if filter_output.response.changed() {
+                    if let Some(meta) = &self.meta {
+                        self.tablectl.filter_indexs = meta
+                            .datas
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, x)| {
+                                for cell in x.iter() {
+                                    if let Some(cell) = cell {
+                                        if cell.contains(self.tablectl.filter.as_str()) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                                return false;
+                            })
+                            .map(|x| x.0)
+                            .collect::<Vec<usize>>();
+                    }
+                }
 
                 if ui.button("新增").clicked() {
                     // 当前处于编辑状态就置空
@@ -309,26 +219,9 @@ impl Table {
                 }
             });
         });
-        ui.separator();
-
-        // 表格显示区
-        ScrollArea::horizontal().show(ui, |ui| {
-            self.show_content(ui);
-        });
-    }
-}
-
-impl Table {
-    pub fn update_content(&mut self, meta: Box<TableMeta>) {
-        self.editctl.input_caches = Box::new(vec![None; meta.fields.len()]);
-        self.meta = Some(meta);
     }
 
-    pub fn update_conns(&mut self, conns: Conns) {
-        self.code_editor.tree = Some(conns);
-    }
-
-    pub fn show_content(&mut self, ui: &mut egui::Ui) {
+    fn render_table(&mut self, ui: &mut egui::Ui) {
         use egui_extras::{Size, TableBuilder};
         // tracing::info!("开始渲染表格...");
         if let Some(meta) = &self.meta {
@@ -344,9 +237,9 @@ impl Table {
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .resizable(true);
 
-            // tracing::info!("设置列数列宽...");
+            // 设置单选列
             tb = tb.column(Size::Absolute {
-                initial: 20.,
+                initial: 50.,
                 range: (0., 400.),
             });
             for (i, field) in fields.iter().enumerate() {
@@ -379,23 +272,6 @@ impl Table {
                 }
             });
             // tracing::info!("构造 body...");
-
-            // 过滤器
-            let filtered_indexs = datas
-                .iter()
-                .enumerate()
-                .filter(|(_, x)| {
-                    for cell in x.iter() {
-                        if let Some(cell) = cell {
-                            if cell.contains(self.tablectl.filter.as_str()) {
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
-                })
-                .map(|x| x.0)
-                .collect::<Vec<usize>>();
 
             tb.body(|mut body| {
                 let height = 18.0 * 2.;
@@ -447,114 +323,146 @@ impl Table {
                         }
                     });
                 }
+
                 // 一次添加所有行 (相同高度)（效率最高）
-                body.rows(height, filtered_indexs.len(), |row_index, mut row| {
-                    // 单选框 + 索引
-                    row.col(|ui| {
-                        ui.radio_value(
-                            &mut self.editctl.select_row,
-                            Some(row_index),
-                            egui::RichText::new(row_index.to_string()).color(Color32::BLUE),
-                        );
-                    });
-                    // 数据行 (从过滤器中展示)
-                    for (col_index, cell) in datas[filtered_indexs[row_index]].iter().enumerate() {
+                body.rows(
+                    height,
+                    self.tablectl.filter_indexs.len(),
+                    |row_index, mut row| {
+                        // 单选框 + 索引
                         row.col(|ui| {
-                            let current_cell_id = row_index * col_len + col_index;
-                            // 是否是编辑模式
-                            if self.editctl.selected_cell == Some(current_cell_id) {
-                                // 编辑模式
-                                let response =
-                                    ui.text_edit_singleline(&mut self.editctl.input_cache);
-                                if response.has_focus() {
-                                    if let (Some(selected_row), Some(meta)) =
-                                        (self.editctl.select_row, &self.meta)
-                                    {
-                                        if ui
-                                            .input_mut()
-                                            .consume_key(egui::Modifiers::CTRL, egui::Key::S)
-                                        {
-                                            tracing::info!("尝试提交编辑 row_id {}", selected_row);
-                                            if let Err(e) = self.s.send(message::Message::Update {
-                                                conn: meta.conn_name.to_owned(),
-                                                db: meta.db_name.to_owned(),
-                                                table: meta.table_name.to_owned(),
-                                                fields: meta.fields.to_owned(),
-                                                datas: Box::new(meta.datas[selected_row].clone()),
-                                                new_data_index: col_index,
-                                                new_data: Box::new(Some(
-                                                    self.editctl.input_cache.to_owned(),
-                                                )),
-                                            }) {
-                                                tracing::error!("发送编辑请求失败：{}", e);
-                                            }
-                                        }
-                                    }
-                                }
-                                // 取消 focus
-                                if response.clicked_elsewhere() {
-                                    self.editctl.selected_cell = None;
-                                    self.editctl.input_cache.clear();
-                                    self.editctl.select_row = None;
-                                }
-                            } else {
-                                // 展示模式
-                                let data_str = cell
-                                    .as_ref()
-                                    .and_then(|x| Some(x.as_str()))
-                                    .unwrap_or("(NULL)");
-                                let mut label = egui::RichText::new(data_str);
-                                if cell.is_none() {
-                                    label = label.color(Color32::GRAY);
-                                }
-                                let button = egui::Button::new(
-                                    label.clone(), // .font(self.font_id.clone()),
-                                )
-                                .frame(false);
-
-                                let tooltip_ui = |ui: &mut egui::Ui| {
-                                    ui.label(label); // .font(self.font_id.clone()));
-                                    ui.label(format!("\nClick to copy"));
-                                };
-
-                                let response = ui.add(button).on_hover_ui(tooltip_ui);
-                                // 单击复制
-                                if response.clicked() {
-                                    ui.output().copied_text = data_str.to_string();
-                                }
-                                // 双击切换到输入模式
-                                if response.double_clicked() {
-                                    self.editctl.select_row = Some(row_index);
-                                    self.editctl.selected_cell = Some(current_cell_id);
-                                    self.editctl.input_cache = if cell.is_none() {
-                                        String::new()
-                                    } else {
-                                        data_str.to_string()
-                                    };
-                                }
-                                response.context_menu(|ui| {
-                                    // 发送置空请求
-                                    if ui.button("置为空 (NULL)").clicked() {
-                                        if let Some(meta) = &self.meta {
-                                            tracing::info!("尝试提交编辑 row_id {}", row_index);
-                                            if let Err(e) = self.s.send(message::Message::Update {
-                                                conn: meta.conn_name.to_owned(),
-                                                db: meta.db_name.to_owned(),
-                                                table: meta.table_name.to_owned(),
-                                                fields: meta.fields.to_owned(),
-                                                datas: Box::new(meta.datas[row_index].clone()),
-                                                new_data_index: col_index,
-                                                new_data: Box::new(None),
-                                            }) {
-                                                tracing::error!("发送编辑 (置空) 请求失败：{}", e);
-                                            }
-                                        }
-                                    }
-                                });
-                            }
+                            ui.radio_value(
+                                &mut self.editctl.select_row,
+                                Some(row_index),
+                                egui::RichText::new(row_index.to_string()).color(Color32::BLUE),
+                            );
                         });
-                    }
-                });
+
+                        // 数据行 (从过滤器中展示)
+                        for (col_index, cell) in datas[self.tablectl.filter_indexs[row_index]]
+                            .iter()
+                            .enumerate()
+                        {
+                            row.col(|ui| {
+                                let current_cell_id = row_index * col_len + col_index;
+                                // 是否是编辑模式
+                                if self.editctl.selected_cell == Some(current_cell_id) {
+                                    // 编辑模式
+                                    let response =
+                                        ui.text_edit_singleline(&mut self.editctl.input_cache);
+
+                                    // 处理保存事件
+                                    if response.has_focus() {
+                                        if let (Some(selected_row), Some(meta)) =
+                                            (self.editctl.select_row, &self.meta)
+                                        {
+                                            if ui
+                                                .input_mut()
+                                                .consume_key(egui::Modifiers::CTRL, egui::Key::S)
+                                            {
+                                                tracing::info!(
+                                                    "尝试提交编辑 row_id {}",
+                                                    selected_row
+                                                );
+                                                if let Err(e) =
+                                                    self.s.send(message::Message::Update {
+                                                        conn: meta.conn_name.to_owned(),
+                                                        db: meta.db_name.to_owned(),
+                                                        table: meta.table_name.to_owned(),
+                                                        fields: meta.fields.to_owned(),
+                                                        datas: Box::new(
+                                                            meta.datas[selected_row].clone(),
+                                                        ),
+                                                        new_data_index: col_index,
+                                                        new_data: Box::new(Some(
+                                                            self.editctl.input_cache.to_owned(),
+                                                        )),
+                                                    })
+                                                {
+                                                    tracing::error!("发送编辑请求失败：{}", e);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // 处理失去焦点时间
+                                    if response.clicked_elsewhere() {
+                                        self.editctl.selected_cell = None;
+                                        self.editctl.input_cache.clear();
+                                        self.editctl.select_row = None;
+                                    }
+                                } else {
+                                    // 显示模式
+
+                                    // 初始化样式
+                                    // 拿到应该显示的内容荣
+                                    let data_str = cell
+                                        .as_ref()
+                                        .and_then(|x| Some(x.as_str()))
+                                        .unwrap_or("(NULL)");
+                                    let mut label = egui::RichText::new(data_str);
+                                    // 给予显示的颜色
+                                    if cell.is_none() {
+                                        label = label.color(Color32::GRAY);
+                                    }
+                                    // 防置标签
+                                    let button = egui::Button::new(
+                                        label.clone(), // .font(self.font_id.clone()),
+                                    )
+                                    .frame(false);
+
+                                    // 处理事件
+                                    // hover 是显示详细内容
+                                    let response = ui.add(button).on_hover_ui(|ui| {
+                                        ui.label(label); // .font(self.font_id.clone()));
+                                        ui.label(format!("\nClick to copy"));
+                                    });
+
+                                    // 单击复制
+                                    if response.clicked() {
+                                        ui.output().copied_text = data_str.to_string();
+                                    }
+                                    // 双击切换到输入模式
+                                    if response.double_clicked() {
+                                        self.editctl.select_row = Some(row_index);
+                                        self.editctl.selected_cell = Some(current_cell_id);
+                                        self.editctl.input_cache = if cell.is_none() {
+                                            String::new()
+                                        } else {
+                                            data_str.to_string()
+                                        };
+                                    }
+                                    // 右键菜单功能
+                                    response.context_menu(|ui| {
+                                        // 发送置空请求
+                                        if ui.button("置为空 (NULL)").clicked() {
+                                            if let Some(meta) = &self.meta {
+                                                tracing::info!("尝试提交编辑 row_id {}", row_index);
+                                                if let Err(e) =
+                                                    self.s.send(message::Message::Update {
+                                                        conn: meta.conn_name.to_owned(),
+                                                        db: meta.db_name.to_owned(),
+                                                        table: meta.table_name.to_owned(),
+                                                        fields: meta.fields.to_owned(),
+                                                        datas: Box::new(
+                                                            meta.datas[row_index].clone(),
+                                                        ),
+                                                        new_data_index: col_index,
+                                                        new_data: Box::new(None),
+                                                    })
+                                                {
+                                                    tracing::error!(
+                                                        "发送编辑 (置空) 请求失败：{}",
+                                                        e
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    },
+                );
 
                 // 动态高度（效率中等）
                 // body.heterogeneous_rows(height_iter, |index, mut row| {
@@ -577,5 +485,130 @@ impl Table {
         } else {
             ui.centered_and_justified(|ui| ui.heading("Loading..."));
         }
+    }
+}
+
+pub struct TableCtl {
+    page: String,
+    size: String,
+    filter: String,
+    filter_indexs: Vec<usize>,
+}
+impl TableCtl {
+    pub fn new() -> Self {
+        Self {
+            page: String::from("0"),
+            size: String::from("100"),
+            filter: String::new(),
+            filter_indexs: (0..100).map(|x| x).collect(),
+        }
+    }
+}
+
+pub struct CodeEditor {
+    input: String,
+    chosed_conn: Option<String>,
+    chosed_db: Option<String>,
+    avaliable_conns: Vec<String>,
+}
+impl CodeEditor {
+    pub fn new() -> Self {
+        Self {
+            input: String::new(),
+            chosed_conn: None,
+            chosed_db: None,
+            avaliable_conns: vec![],
+        }
+    }
+}
+
+pub struct TableMeta {
+    pub conn_name: String,
+    pub db_name: String,
+    pub table_name: String,
+    pub fields: Box<Vec<Field>>,
+    pub datas: TableRows,
+}
+
+struct EditCtl {
+    select_row: Option<usize>,
+    selected_cell: Option<usize>,
+    input_cache: String,
+    input_caches: Box<Vec<Option<String>>>,
+    adding_new_row: bool,
+}
+
+impl EditCtl {
+    pub fn new() -> Self {
+        Self {
+            input_cache: String::new(),
+            select_row: None,
+            selected_cell: None,
+            input_caches: Box::new(vec![]),
+            adding_new_row: false,
+        }
+    }
+}
+
+impl Table {
+    pub fn update_sql(&mut self, sql: &str) {
+        self.code_editor.input = sql.to_owned()
+    }
+
+    pub fn show_msg(&self, msg: String) {
+        // self
+    }
+
+    pub fn update(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        // SQL 编辑器
+        self.render_sql_editor(ui);
+
+        // 工具栏
+        self.render_toolbar(ui);
+        ui.separator();
+
+        // 表格
+        let scroll_area = ScrollArea::new([true, false]).show(ui, |ui| {
+            self.render_table(ui);
+        });
+    }
+
+    pub fn refresh(&mut self) {
+        if let Some(meta) = self.meta.as_ref() {
+            self.editctl.select_row = None;
+            self.editctl.adding_new_row = false;
+            let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
+            let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
+            let sql =
+                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
+            if let Err(e) = self.s.send(message::Message::Select {
+                conn: meta.conn_name.to_owned(),
+                db: Some(meta.db_name.to_owned()),
+                table: Some(meta.table_name.to_owned()),
+                fields: Some(meta.fields.to_owned()),
+                r#type: message::SelectType::Table,
+                sql,
+            }) {
+                tracing::error!("翻页请求失败：{}", e);
+            }
+        }
+    }
+
+    pub fn update_content_and_refresh(&mut self, meta: Box<TableMeta>) {
+        self.editctl.input_caches = Box::new(vec![None; meta.fields.len()]);
+        self.tablectl.filter_indexs = (0..meta.datas.len()).map(|x| x).collect();
+        self.meta = Some(meta);
+    }
+
+    pub fn update_avaliable_conns(&mut self, conns: Vec<String>) {
+        self.code_editor.avaliable_conns = conns;
+    }
+
+    pub fn update_current_conn(&mut self, conn: Option<String>) {
+        self.code_editor.chosed_conn = conn;
+    }
+
+    pub fn update_current_db(&mut self, db: Option<String>) {
+        self.code_editor.chosed_db = db;
     }
 }

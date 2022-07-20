@@ -133,6 +133,11 @@ impl App {
                 "databae",
                 &mut self.state.database as &mut dyn eframe::App,
             ),
+            // (
+            //     "✨ Redis",
+            //     "databae",
+            //     &mut self.state.redis as &mut dyn eframe::App,
+            // ),
             (
                 "📓 文章",
                 "article",
@@ -162,8 +167,12 @@ impl App {
     }
 
     fn render_footer(&mut self, ctx: &Context) {
-        // TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-        //     //
+        // egui::panel::TopBottomPanel::bottom("表管理 bottom").show(ctx, |ui| {
+        //     egui::menu::bar(ui, |ui| {
+        //         if ui.button("奇妙的东西").clicked() {};
+        //         if ui.button("奇妙的东西").clicked() {};
+        //         if ui.button("奇妙的东西").clicked() {};
+        //     });
         // });
     }
 
