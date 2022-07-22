@@ -9,6 +9,11 @@ impl Setting {
     pub fn new(config: Config) -> Self {
         Self { config }
     }
+
+    pub fn init(&mut self, ctx: &Context) {
+        ctx.set_visuals(Visuals::dark());
+        self.config.theme.font.update(ctx);
+    }
 }
 
 impl Setting {
@@ -28,9 +33,8 @@ impl Setting {
                     ctx.set_visuals(Visuals::light());
                 }
             });
-            for (i, font) in self.config.theme.font.lists.iter().enumerate() {
-                ui.radio_value(&mut self.config.theme.font.selected, i as i8, font);
-            }
+
+            self.config.theme.show(ui, ctx);
         });
     }
 }

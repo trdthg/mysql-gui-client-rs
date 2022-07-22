@@ -36,4 +36,8 @@ impl Theme {
     pub fn to_light(&mut self) {
         self.colors = Colors::light();
     }
+
+    pub fn show(&mut self, ui: &mut eframe::egui::Ui, ctx: &eframe::egui::Context) {
+        self.font.show(ui, ctx);
+    }
 }

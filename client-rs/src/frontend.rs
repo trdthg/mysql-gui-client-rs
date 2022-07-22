@@ -11,11 +11,12 @@ mod test;
 
 use crate::{backend::Repo, config::Config};
 
-use self::{article::Article, database::DataBase, setting::Setting, test::Test};
+use self::{article::Article, database::DataBase, setting::Setting, talk::Talk, test::Test};
 
 pub struct State {
     article: Article,
     database: DataBase,
+    talk: Talk,
     setting: Setting,
     test: Test,
     // #[cfg(feature = "http")]
@@ -27,10 +28,12 @@ impl State {
         let article = Article::new(repo.article_client);
         let setting = Setting::new(Config::new());
         let test = Default::default();
+        let talk = Talk::new();
         Self {
             article,
             database,
             setting,
+            talk,
             test,
             selected: String::new(),
         }
@@ -46,7 +49,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         tracing::trace!("更新配置");
         // 初始化作用
-        self.config.update(ctx);
+        self.state.setting.init(ctx);
         // ctx.set_debug_on_hover(true);
 
         tracing::trace!("渲染 Top");
@@ -142,6 +145,11 @@ impl App {
                 "📓 文章",
                 "article",
                 &mut self.state.article as &mut dyn eframe::App,
+            ),
+            (
+                "⛭ 聊天", // 齿轮 🔨 🔧
+                "talk",
+                &mut self.state.talk as &mut dyn eframe::App,
             ),
             (
                 "⛭ 设置", // 齿轮 🔨 🔧

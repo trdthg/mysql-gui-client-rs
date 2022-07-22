@@ -25,8 +25,6 @@ impl Config {
     }
 
     pub fn update(&mut self, ctx: &eframe::egui::Context) {
-        if let Some(new_font) = self.theme.font.update() {
-            ctx.set_fonts(new_font);
-        }
+        self.theme.font.update(ctx);
     }
 }

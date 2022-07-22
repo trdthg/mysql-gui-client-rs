@@ -9,7 +9,7 @@ use crate::backend::talk::{message::Message, Client};
 pub struct Talk {
     count: usize,
     inner_count: usize,
-    client: Client,
+    client: Option<Client>,
     state: State,
     text: String,
     msg_buf: Vec<Message>,
@@ -35,11 +35,11 @@ impl eframe::App for Talk {
 }
 
 impl Talk {
-    pub fn new(client: Client) -> Self {
+    pub fn new() -> Self {
         Self {
             count: 0,
             inner_count: 0,
-            client,
+            client: None,
             state: State::First,
             text: String::new(),
             msg_buf: vec![],
@@ -132,23 +132,25 @@ impl Talk {
             .input_mut()
             .consume_key(egui::Modifiers::CTRL, egui::Key::Enter)
         {
-            if !check_msg(&self.text) {
-                let msg = Message::Normal {
-                    user: "".to_string(),
-                    msg: self.text.clone(),
-                };
-                loop {
-                    match self.client.send_msg(msg.clone()) {
-                        Ok(_) => {
-                            self.msg_buf.push(msg);
-                            self.text.clear();
-                            self.count += 1;
-                            ui.ctx().memory().request_focus(output.response.id);
-                            break;
-                        }
-                        Err(_) => {
-                            self.client.connect().expect("重连失败");
-                            tracing::debug!("重连失败");
+            if let Some(client) = &mut self.client {
+                if !check_msg(&self.text) {
+                    let msg = Message::Normal {
+                        user: "".to_string(),
+                        msg: self.text.clone(),
+                    };
+                    loop {
+                        match client.send_msg(msg.clone()) {
+                            Ok(_) => {
+                                self.msg_buf.push(msg);
+                                self.text.clear();
+                                self.count += 1;
+                                ui.ctx().memory().request_focus(output.response.id);
+                                break;
+                            }
+                            Err(_) => {
+                                client.connect().expect("重连失败");
+                                tracing::debug!("重连失败");
+                            }
                         }
                     }
                 }
