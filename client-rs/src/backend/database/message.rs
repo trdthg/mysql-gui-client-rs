@@ -88,7 +88,7 @@ pub enum Response {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ConnectionConfig {
     pub username: String,
     pub password: String,
@@ -99,10 +99,10 @@ pub struct ConnectionConfig {
 impl Default for ConnectionConfig {
     fn default() -> Self {
         Self {
-            username: "tiangong2008".to_string(),
-            password: "tiangong2008".to_string(),
-            ip: "www.91iedu.com".to_string(),
-            port: "3391".to_string(),
+            username: "".to_string(),
+            password: "".to_string(),
+            ip: "".to_string(),
+            port: "".to_string(),
         }
     }
 }

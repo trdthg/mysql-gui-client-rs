@@ -2,7 +2,10 @@ mod config_new_conn;
 mod sidebar;
 mod table;
 pub mod types;
-use crate::backend::database::{message, DatabaseClient};
+use crate::backend::database::{
+    message::{self, ConnectionConfig},
+    DatabaseClient,
+};
 use eframe::egui::{self, RichText, ScrollArea};
 use table::Table as TableComponent;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -10,6 +13,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use self::{sidebar::SideBar, types::Conns};
 
 pub struct DataBase {
+    init: bool,
     state: String,
     conns: Conns,
     sidebar: SideBar,
@@ -21,6 +25,7 @@ pub struct DataBase {
 
 impl eframe::App for DataBase {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.init(ctx, frame);
         egui::panel::TopBottomPanel::top("数据库管理 top").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 if ui.button("💻 侧边栏").clicked() {
@@ -48,11 +53,11 @@ impl eframe::App for DataBase {
                     };
                 });
                 self.config_new_conn.run(&self.s, ctx);
-                self.handle_sql();
+                self.handle_sql(frame);
                 ScrollArea::vertical()
                     .auto_shrink([false; 2])
                     .show(ui, |ui| {
-                        self.sidebar.update(ui);
+                        self.sidebar.update(ui, frame);
                     });
             });
         }
@@ -66,6 +71,7 @@ impl eframe::App for DataBase {
 impl DataBase {
     pub fn new(database_client: DatabaseClient) -> Self {
         Self {
+            init: false,
             conns: Conns::default(),
             state: "aaa".into(),
             table: TableComponent::new(database_client.s.clone()),
@@ -76,7 +82,27 @@ impl DataBase {
         }
     }
 
-    fn handle_sql(&mut self) {
+    fn init(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.init == true {
+            return;
+        }
+        if let Some(configs) = frame.storage().and_then(|x| x.get_string("conns")) {
+            if let Ok(configs) = serde_json::from_str::<Vec<ConnectionConfig>>(&configs) {
+                for config in configs {
+                    if let Err(e) = self
+                        .s
+                        .send(message::Message::Connect { config, save: true })
+                    {
+                        tracing::error!("后端未正常启动：{}", e);
+                    }
+                }
+            }
+        }
+
+        self.init = true;
+    }
+
+    fn handle_sql(&mut self, frame: &mut eframe::Frame) {
         if let Ok(v) = self.r.try_recv() {
             match v {
                 message::Response::NewConn {
@@ -96,6 +122,15 @@ impl DataBase {
                             databases: None,
                         },
                     );
+                    // 持久化连接
+                    if let Some(store) = frame.storage_mut() {
+                        let conns = self.conns.borrow();
+                        let configs: Vec<&ConnectionConfig> =
+                            conns.values().map(|x| &x.config).collect();
+                        if let Ok(s) = serde_json::to_string(&configs) {
+                            store.set_string("conns", s);
+                        }
+                    }
                     self.config_new_conn.close();
                     self.sidebar.update_conns(self.conns.clone()); // 更新
                 }
@@ -104,12 +139,14 @@ impl DataBase {
                     if let Some(conn) = self.conns.borrow_mut().get_conn_mut(&conn) {
                         conn.databases = Some(data);
                     }
-                    // 更新 table 可选的连接
-                    self.table.update_avaliable_conns(
-                        self.conns.borrow().keys().map(|x| x.to_owned()).collect(),
-                    );
+                    // // 更新 table 可选的连接
+                    // self.table.update_avaliable_conns(
+                    //     self.conns.borrow().keys().map(|x| x.to_owned()).collect(),
+                    // );
                     // 更新侧边栏
                     self.sidebar.update_conns(self.conns.clone());
+                    // 更新表格
+                    self.table.update_conns(self.conns.clone());
                 }
                 message::Response::Tables { conn, db, data } => {
                     tracing::info!("查询数据表元数据成功！");
@@ -133,7 +170,7 @@ impl DataBase {
                         let meta = Box::new(table::TableMeta {
                             conn_name: conn.to_owned(),
                             db_name: db.to_owned(),
-                            table_name: table,
+                            table_name: table.to_owned(),
                             fields,
                             datas,
                         });
@@ -142,8 +179,8 @@ impl DataBase {
                         // 更新表格数据
                         self.table.update_content_and_refresh(meta);
                         // 更新状态
-                        self.table.update_current_conn(Some(conn));
-                        self.table.update_current_db(Some(db));
+                        self.table
+                            .update_current_table(Some(conn), Some(db), Some(table));
                     }
                 }
                 message::Response::Customed { fields, datas } => {

@@ -1,7 +1,5 @@
 use crate::theme::Theme;
 
-pub const CONFIG_PATH: &str = "test-client-config-rs";
-
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
 pub struct Config {
     #[serde(skip)]
@@ -19,7 +17,7 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         tracing::info!("获取默认配置");
-        let config: Config = confy::load(CONFIG_PATH).unwrap_or_default();
+        let config = Config::default();
         tracing::info!("配置成功");
         config
     }

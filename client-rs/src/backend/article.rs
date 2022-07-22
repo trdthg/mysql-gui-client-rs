@@ -46,7 +46,7 @@ impl Server for ArticleServer {
         loop {
             match self.r.recv().await {
                 None => {
-                    tracing::error!("发送方已关闭");
+                    // tracing::error!("发送方已关闭");
                 }
                 Some(_) => {
                     let res = api::fetch_articles().await;

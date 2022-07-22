@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::backend::database::{message, sqls};
 
-use super::types::{Field, TableRows};
+use super::types::{Conns, Field, TableRows};
 
 pub struct Table {
     s: UnboundedSender<message::Message>,
@@ -14,6 +14,138 @@ pub struct Table {
     code_editor: CodeEditor,
     tablectl: TableCtl,
     editctl: EditCtl,
+}
+
+pub struct TableCtl {
+    page: String,
+    size: String,
+    filter: String,
+    filter_indexs: Vec<usize>,
+}
+impl TableCtl {
+    pub fn new() -> Self {
+        Self {
+            page: String::from("0"),
+            size: String::from("100"),
+            filter: String::new(),
+            filter_indexs: (0..100).map(|x| x).collect(),
+        }
+    }
+}
+
+pub struct CodeEditor {
+    input: String,
+    chosed_conn: Option<String>,
+    chosed_db: Option<String>,
+    chosed_table: Option<String>,
+    // avaliable_conns: Vec<String>,
+    conns: Option<Conns>,
+}
+impl CodeEditor {
+    pub fn new() -> Self {
+        Self {
+            input: String::new(),
+            chosed_conn: None,
+            chosed_db: None,
+            chosed_table: None,
+            // avaliable_conns: vec![],
+            conns: None,
+        }
+    }
+}
+
+pub struct TableMeta {
+    pub conn_name: String,
+    pub db_name: String,
+    pub table_name: String,
+    pub fields: Box<Vec<Field>>,
+    pub datas: TableRows,
+}
+
+struct EditCtl {
+    select_row: Option<usize>,
+    selected_cell: Option<usize>,
+    input_cache: String,
+    input_caches: Box<Vec<Option<String>>>,
+    adding_new_row: bool,
+}
+
+impl EditCtl {
+    pub fn new() -> Self {
+        Self {
+            input_cache: String::new(),
+            select_row: None,
+            selected_cell: None,
+            input_caches: Box::new(vec![]),
+            adding_new_row: false,
+        }
+    }
+}
+
+impl Table {
+    pub fn update_sql(&mut self, sql: &str) {
+        self.code_editor.input = sql.to_owned()
+    }
+
+    pub fn show_msg(&self, msg: String) {
+        // self
+    }
+
+    pub fn update(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        // SQL 编辑器
+        self.render_sql_editor(ui);
+
+        // 工具栏
+        self.render_toolbar(ui);
+        ui.separator();
+
+        // 表格
+        let scroll_area = ScrollArea::new([true, false]).show(ui, |ui| {
+            self.render_table(ui);
+        });
+    }
+
+    pub fn refresh(&mut self) {
+        if let Some(meta) = self.meta.as_ref() {
+            self.editctl.select_row = None;
+            self.editctl.adding_new_row = false;
+            let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
+            let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
+            let sql =
+                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
+            if let Err(e) = self.s.send(message::Message::Select {
+                conn: meta.conn_name.to_owned(),
+                db: Some(meta.db_name.to_owned()),
+                table: Some(meta.table_name.to_owned()),
+                fields: Some(meta.fields.to_owned()),
+                r#type: message::SelectType::Table,
+                sql,
+            }) {
+                tracing::error!("翻页请求失败：{}", e);
+            }
+        }
+    }
+
+    pub fn update_content_and_refresh(&mut self, meta: Box<TableMeta>) {
+        self.editctl.input_caches = Box::new(vec![None; meta.fields.len()]);
+        self.tablectl.filter_indexs = (0..meta.datas.len()).map(|x| x).collect();
+        self.meta = Some(meta);
+    }
+
+    pub fn update_conns(&mut self, conns: Conns) {
+        self.code_editor.conns = Some(conns);
+    }
+
+    pub fn update_current_table(
+        &mut self,
+        conn: Option<String>,
+        db: Option<String>,
+        table: Option<String>,
+    ) {
+        self.code_editor.chosed_conn = conn;
+        self.code_editor.chosed_db = db;
+        self.code_editor.chosed_table = table;
+    }
 }
 
 impl Table {
@@ -30,8 +162,10 @@ impl Table {
     fn render_sql_editor(&mut self, ui: &mut egui::Ui) {
         // 辅助信息
         egui::menu::bar(ui, |ui| {
+            egui::menu::menu_button(ui, "标签", |ui| {
+                ui.menu_button("title", |ui| {});
+            });
             let current_conn = ui.label("连接");
-
             egui::ComboBox::from_id_source(current_conn.id)
                 .selected_text(match &self.code_editor.chosed_conn {
                     Some(conn) => conn.as_str(),
@@ -39,22 +173,84 @@ impl Table {
                 })
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.code_editor.chosed_conn, None, "None");
-                    for conn in &self.code_editor.avaliable_conns {
-                        ui.selectable_value(
-                            &mut self.code_editor.chosed_conn,
-                            Some(conn.to_string()),
-                            conn,
-                        );
+                    if let Some(conns) = &self.code_editor.conns {
+                        for conn in conns.borrow().keys() {
+                            ui.selectable_value(
+                                &mut self.code_editor.chosed_conn,
+                                Some(conn.to_string()),
+                                conn,
+                            );
+                        }
                     }
                 });
-            // if let Some(meta) = &self.meta {
-            //     ui.label(RichText::new(format!(
-            //         "当前连接：{}.{}",
-            //         meta.conn_name, meta.db_name
-            //     )));
-            // } else {
-            //     ui.label("没有选择连接");
-            // }
+
+            let current_db = ui.label("数据库");
+            egui::ComboBox::from_id_source(current_db.id)
+                .selected_text(match &self.code_editor.chosed_db {
+                    Some(db) => db.as_str(),
+                    None => "None",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.code_editor.chosed_db, None, "None");
+
+                    if let CodeEditor {
+                        chosed_conn: Some(chosed_conn),
+                        chosed_db: Some(chosed_db),
+                        ..
+                    } = &self.code_editor
+                    {
+                        if let Some(conns) = self.code_editor.conns.as_ref() {
+                            if let Some(dbs) = conns
+                                .borrow()
+                                .get(chosed_conn)
+                                .and_then(|x| x.databases.as_ref())
+                            {
+                                for db in dbs.keys() {
+                                    ui.selectable_value(
+                                        &mut self.code_editor.chosed_db,
+                                        Some(db.to_string()),
+                                        db,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                });
+
+            let current_db = ui.label("表");
+            egui::ComboBox::from_id_source(current_db.id)
+                .selected_text(match &self.code_editor.chosed_table {
+                    Some(db) => db.as_str(),
+                    None => "None",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.code_editor.chosed_table, None, "None");
+
+                    if let CodeEditor {
+                        chosed_conn: Some(chosed_conn),
+                        chosed_db: Some(chosed_db),
+                        ..
+                    } = &self.code_editor
+                    {
+                        if let Some(conns) = self.code_editor.conns.as_ref() {
+                            if let Some(tables) = conns
+                                .borrow()
+                                .get(chosed_conn)
+                                .and_then(|x| x.databases.as_ref())
+                                .and_then(|x| x.get(chosed_db))
+                                .and_then(|x| x.tables.as_ref())
+                            {
+                                for table in tables.keys() {
+                                    ui.selectable_value(
+                                        &mut self.code_editor.chosed_table,
+                                        Some(table.to_string()),
+                                        table,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                });
 
             if ui.button("执行 ▶").clicked() {
                 // ◀
@@ -182,7 +378,7 @@ impl Table {
                     .hint_text("页")
                     .desired_width(30.)
                     .show(ui);
-                if page_input.response.lost_focus() && page_input.response.changed() {
+                if page_input.response.changed() {
                     self.refresh();
                 }
                 if ui.button("⏵").clicked() {
@@ -485,130 +681,5 @@ impl Table {
         } else {
             ui.centered_and_justified(|ui| ui.heading("Loading..."));
         }
-    }
-}
-
-pub struct TableCtl {
-    page: String,
-    size: String,
-    filter: String,
-    filter_indexs: Vec<usize>,
-}
-impl TableCtl {
-    pub fn new() -> Self {
-        Self {
-            page: String::from("0"),
-            size: String::from("100"),
-            filter: String::new(),
-            filter_indexs: (0..100).map(|x| x).collect(),
-        }
-    }
-}
-
-pub struct CodeEditor {
-    input: String,
-    chosed_conn: Option<String>,
-    chosed_db: Option<String>,
-    avaliable_conns: Vec<String>,
-}
-impl CodeEditor {
-    pub fn new() -> Self {
-        Self {
-            input: String::new(),
-            chosed_conn: None,
-            chosed_db: None,
-            avaliable_conns: vec![],
-        }
-    }
-}
-
-pub struct TableMeta {
-    pub conn_name: String,
-    pub db_name: String,
-    pub table_name: String,
-    pub fields: Box<Vec<Field>>,
-    pub datas: TableRows,
-}
-
-struct EditCtl {
-    select_row: Option<usize>,
-    selected_cell: Option<usize>,
-    input_cache: String,
-    input_caches: Box<Vec<Option<String>>>,
-    adding_new_row: bool,
-}
-
-impl EditCtl {
-    pub fn new() -> Self {
-        Self {
-            input_cache: String::new(),
-            select_row: None,
-            selected_cell: None,
-            input_caches: Box::new(vec![]),
-            adding_new_row: false,
-        }
-    }
-}
-
-impl Table {
-    pub fn update_sql(&mut self, sql: &str) {
-        self.code_editor.input = sql.to_owned()
-    }
-
-    pub fn show_msg(&self, msg: String) {
-        // self
-    }
-
-    pub fn update(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        // SQL 编辑器
-        self.render_sql_editor(ui);
-
-        // 工具栏
-        self.render_toolbar(ui);
-        ui.separator();
-
-        // 表格
-        let scroll_area = ScrollArea::new([true, false]).show(ui, |ui| {
-            self.render_table(ui);
-        });
-    }
-
-    pub fn refresh(&mut self) {
-        if let Some(meta) = self.meta.as_ref() {
-            self.editctl.select_row = None;
-            self.editctl.adding_new_row = false;
-            let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let sql =
-                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
-            if let Err(e) = self.s.send(message::Message::Select {
-                conn: meta.conn_name.to_owned(),
-                db: Some(meta.db_name.to_owned()),
-                table: Some(meta.table_name.to_owned()),
-                fields: Some(meta.fields.to_owned()),
-                r#type: message::SelectType::Table,
-                sql,
-            }) {
-                tracing::error!("翻页请求失败：{}", e);
-            }
-        }
-    }
-
-    pub fn update_content_and_refresh(&mut self, meta: Box<TableMeta>) {
-        self.editctl.input_caches = Box::new(vec![None; meta.fields.len()]);
-        self.tablectl.filter_indexs = (0..meta.datas.len()).map(|x| x).collect();
-        self.meta = Some(meta);
-    }
-
-    pub fn update_avaliable_conns(&mut self, conns: Vec<String>) {
-        self.code_editor.avaliable_conns = conns;
-    }
-
-    pub fn update_current_conn(&mut self, conn: Option<String>) {
-        self.code_editor.chosed_conn = conn;
-    }
-
-    pub fn update_current_db(&mut self, db: Option<String>) {
-        self.code_editor.chosed_db = db;
     }
 }

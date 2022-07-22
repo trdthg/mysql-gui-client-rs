@@ -46,6 +46,17 @@ pub struct App {
 }
 
 impl eframe::App for App {
+    fn warm_up_enabled(&self) -> bool {
+        println!("绘制行吗？？？");
+        false
+    }
+
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
+        // _storage.flush()
+        // println!("原来的： {:?}", _storage.get_string("key"));
+        // _storage.set_string("key", "1231221".to_owned());
+    }
+
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         tracing::trace!("更新配置");
         // 初始化作用
@@ -70,10 +81,6 @@ impl App {
         options.vsync = true;
         options.initial_window_size = Some(Vec2::new(480.0, 740.0));
         eframe::run_native("My App", options, Box::new(|_cc| Box::new(self)));
-    }
-
-    fn save_config(&self, config: Config) -> Result<(), confy::ConfyError> {
-        confy::store(crate::config::CONFIG_PATH, config)
     }
 
     fn render_top_panel(&mut self, ctx: &Context, frame: &mut eframe::Frame) {

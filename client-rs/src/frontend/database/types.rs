@@ -75,13 +75,16 @@ impl ConnTree {
             .and_then(|tables| tables.get(table))
     }
 }
+
+pub type Databases = BTreeMap<String, DB>;
+
+pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
+
 #[derive(Clone, Debug)]
 pub struct DB {
     pub name: String,
     pub tables: Option<Tables>,
 }
-
-pub type Databases = BTreeMap<String, DB>;
 
 #[derive(Debug, Clone)]
 pub struct Field {
@@ -104,7 +107,5 @@ pub enum ColumnKey {
     Foreign,
     None,
 }
-
-pub type Tables = Box<BTreeMap<String, Vec<Field>>>;
 
 pub type TableRows = Box<Vec<Vec<Option<String>>>>;

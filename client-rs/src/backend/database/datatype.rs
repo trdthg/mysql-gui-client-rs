@@ -33,6 +33,11 @@
 
 use rust_decimal::Decimal;
 
+use sqlx::Row;
+
+use super::sqls::FieldMeta;
+use std::str::FromStr;
+
 #[derive(Debug, Clone)]
 pub enum DataType {
     // i8
@@ -381,10 +386,6 @@ impl DataType {
         }
     }
 }
-use sqlx::Row;
-
-use super::sqls::FieldMeta;
-use std::str::FromStr;
 macro_rules! datacell_to_string {
     ([], $({ $Variant:ident, $BasicType:ident }),*) => {
         #[derive(Debug, Clone)]
@@ -485,3 +486,22 @@ macro_rules! get_all_datatype {
 }
 
 get_all_datatype!(datacell_to_string);
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn chrono_from_str() {
+        use std::str::FromStr;
+        let s = "2012-1-1T12:12:12";
+        let time = sqlx::types::chrono::NaiveDateTime::from_str(s).unwrap();
+        println!("{:?} {:?}", time.date(), time.time());
+
+        let s = "2012-1-1";
+        let time = sqlx::types::chrono::NaiveDate::from_str(s).unwrap();
+        println!("{:?}", time);
+
+        let s = "12:12:12";
+        let time = sqlx::types::chrono::NaiveTime::from_str(s).unwrap();
+        println!("{:?}", time);
+    }
+}

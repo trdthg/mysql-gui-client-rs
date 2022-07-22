@@ -33,7 +33,7 @@ impl SideBar {
         self.conns = conns;
     }
 
-    pub fn update(&mut self, ui: &mut egui::Ui) {
+    pub fn update(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         for (conn_name, conn) in self.conns.borrow().iter() {
             if conn.conn.is_none() {
                 ui.label(format!("{}", conn.config.get_name()));
