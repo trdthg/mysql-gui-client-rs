@@ -53,7 +53,9 @@ pub enum DataType {
     // carchar
     Varchar,
     // char(10)
-    Char { width: u16 },
+    Char {
+        width: Option<u16>,
+    },
     // bool
     Boolean,
     // f32
@@ -61,7 +63,10 @@ pub enum DataType {
     // f64
     Double,
     // deciml(2,6)
-    Decimal { scale: u16, precision: u16 },
+    Decimal {
+        scale: Option<u16>,
+        precision: Option<u16>,
+    },
     Date,
     Time,
     DateTime,
@@ -71,21 +76,27 @@ pub enum DataType {
 }
 
 macro_rules! datatype_match_pattern {
-    ($match_pattern:pat,  $datatype:ty, $scalar:ty) => {
+    ($match_pattern:pat, $datatype:ty, $scalar:ty, $lowercase:expr ) => {
         $match_pattern
     };
 }
-macro_rules! datatype_basictype {
-    ($match_pattern:pat,  $datatype:ty, $scalar:ty) => {
-        $scalar
-    };
-}
 macro_rules! datatype_name {
-    ($match_pattern:pat,  $datatype:ty, $scalar:ty) => {
+    ($match_pattern:pat, $datatype:ty, $scalar:ty, $lowercase:expr ) => {
         $datatype
     };
 }
+macro_rules! datatype_basictype {
+    ($match_pattern:pat, $datatype:ty, $scalar:ty, $lowercase:expr ) => {
+        $scalar
+    };
+}
+macro_rules! datatype_lowercase {
+    ($match_pattern:pat, $datatype:ty, $scalar:ty, $lowercase:expr ) => {
+        $lowercase
+    };
+}
 pub(crate) use datatype_basictype;
+pub(crate) use datatype_lowercase;
 pub(crate) use datatype_match_pattern;
 pub(crate) use datatype_name;
 
@@ -94,7 +105,8 @@ macro_rules! bit {
         $macro! {
             DataType::Bit,
             Bit,
-            u8
+            u8,
+            "bit"
         }
     };
 }
@@ -105,7 +117,8 @@ macro_rules! boolean {
         $macro! {
             DataType::Boolean,
             Boolean,
-            bool
+            bool,
+            "bool"
         }
     };
 }
@@ -117,7 +130,8 @@ macro_rules! int8 {
         $macro! {
             DataType::TinyInt,
             TinyInt,
-            i8
+            i8,
+            "tinyint"
         }
     };
 }
@@ -128,7 +142,8 @@ macro_rules! int16 {
         $macro! {
             DataType::SmallInt,
             SmallInt,
-            i16
+            i16,
+            "smallint"
         }
     };
 }
@@ -139,7 +154,8 @@ macro_rules! int32 {
         $macro! {
             DataType::Integer,
             Integer,
-            i32
+            i32,
+            "int"
         }
     };
 }
@@ -150,7 +166,8 @@ macro_rules! int64 {
         $macro! {
             DataType::BigInt,
             BigInt,
-            i64
+            i64,
+            "bigint"
         }
     };
 }
@@ -161,7 +178,8 @@ macro_rules! varchar {
         $macro! {
             DataType::Varchar,
             Varchar,
-            String
+            String,
+            "varchar"
         }
     };
 }
@@ -172,7 +190,8 @@ macro_rules! fwchar {
         $macro! {
             DataType::Char { .. },
             Char,
-            String
+            String,
+            "char"
         }
     };
 }
@@ -182,7 +201,8 @@ macro_rules! text {
         $macro! {
             DataType::Text,
             Text,
-            String
+            String,
+            "text"
         }
     };
 }
@@ -193,7 +213,8 @@ macro_rules! float {
         $macro! {
             DataType::Float,
             Float,
-            f32
+            f32,
+            "float"
         }
     };
 }
@@ -204,7 +225,8 @@ macro_rules! double {
         $macro! {
             DataType::Double,
             Double,
-            f64
+            f64,
+            "double"
         }
     };
 }
@@ -217,7 +239,8 @@ macro_rules! decimal {
         $macro! {
             DataType::Decimal { .. },
             Decimal,
-            Decimal
+            Decimal,
+            "decimal"
         }
     };
 }
@@ -228,7 +251,8 @@ macro_rules! date {
         $macro! {
             DataType::Date,
             Date,
-            sqlx::types::chrono::NaiveDate
+            sqlx::types::chrono::NaiveDate,
+            "date"
         }
     };
 }
@@ -239,7 +263,8 @@ macro_rules! time {
         $macro! {
             DataType::Time,
             Time,
-            sqlx::types::chrono::NaiveTime
+            sqlx::types::chrono::NaiveTime,
+            "time"
         }
     };
 }
@@ -250,7 +275,8 @@ macro_rules! datetime {
         $macro! {
             DataType::DateTime,
             Time,
-            sqlx::types::chrono::NaiveDateTime
+            sqlx::types::chrono::NaiveDateTime,
+            "datetime"
         }
     };
 }
@@ -261,7 +287,8 @@ macro_rules! timestamp {
         $macro! {
             DataType::TimeStamp,
             Time,
-            chrono::DateTime<chrono::Utc>
+            chrono::DateTime<chrono::Utc>,
+            "timestamp"
         }
     };
 }
@@ -272,10 +299,38 @@ macro_rules! unknown {
         $macro! {
             DataType::Unknown,
             Unknown,
-            String
+            String,
+            ""
         }
     };
 }
+
+// macro_rules! impl_data_type {
+//     ([], $({ $Variant:ident, $BasicType:ident }),*) => {
+//         // #[derive(Debug, Clone)]
+//         // pub enum DataType2 {
+//         //     $(
+//         //         $Variant! { datatype_name } {}
+//         //     )*
+//         // }
+
+//         impl DataType {
+//             pub fn from_lowercase(s: &str) -> Self {
+//                 match s {
+//                     $(
+//                         $Variant! { datatype_lowercase } => {
+//                             DataType::{$Variant! { datatype_name }}
+//                         }
+//                     )*
+//                     _ => {
+//                         Self::Unknown
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
 impl DataType {
     pub fn get_default_width(&self) -> f32 {
         match self {
@@ -285,12 +340,16 @@ impl DataType {
             DataType::Integer => 60.,
             DataType::BigInt => 80.,
             DataType::Varchar => 100.,
-            DataType::Char { width } => *width as f32 * 10.,
+            DataType::Char { width } => width.and_then(|x| Some(x as f32 * 10.)).unwrap_or(50.),
             DataType::Text => 180.,
             DataType::Boolean => 50.,
             DataType::Float => 50.,
             DataType::Double => 60.,
-            DataType::Decimal { scale, precision } => (scale + precision) as f32 * 10.,
+            DataType::Decimal { scale, precision } => {
+                let scale = scale.and_then(|x| Some(x as f32 * 10.)).unwrap_or(5.);
+                let precision = precision.and_then(|x| Some(x as f32 * 10.)).unwrap_or(5.);
+                (scale + precision) * 10.
+            }
             DataType::Date => 80.,
             DataType::Time => 80.,
             DataType::DateTime => 120.,
@@ -310,11 +369,11 @@ impl DataType {
             "FLOAT" => DataType::Float,
             "DOUBLE" => DataType::Double,
             "DECIMAL" => DataType::Decimal {
-                scale: 6,
-                precision: 2,
+                scale: None,
+                precision: None,
             },
 
-            "CHAR" => DataType::Char { width: 10 },
+            "CHAR" => DataType::Char { width: None },
             "VARCHAR" => DataType::Varchar,
             "TEXT" => DataType::Text,
 
@@ -339,13 +398,13 @@ impl DataType {
             "float" => DataType::Float,
             "double" => DataType::Double,
             "decimal" => DataType::Decimal {
-                scale: field.numeric_precision.unwrap(),
-                precision: field.numeric_scale.unwrap(),
+                scale: field.numeric_precision,
+                precision: field.numeric_scale,
             },
 
             "varchar" => DataType::Varchar,
             "char" => DataType::Char {
-                width: field.character_maximum_length.unwrap(),
+                width: field.character_maximum_length,
             },
             "text" => DataType::Text,
 
@@ -374,9 +433,18 @@ impl DataType {
             DataType::Double => "double".to_string(),
 
             DataType::Varchar => "varchar".to_string(),
-            DataType::Char { width } => format!("char({})", width),
+            DataType::Char { width } => {
+                let width = width.and_then(|x| Some(x.to_string())).unwrap_or_default();
+                format!("char({})", width)
+            }
             DataType::Text => "text".to_string(),
-            DataType::Decimal { scale, precision } => format!("decimal({}, {})", scale, precision),
+            DataType::Decimal { scale, precision } => {
+                let scale = scale.and_then(|x| Some(x.to_string())).unwrap_or_default();
+                let precision = precision
+                    .and_then(|x| Some(x.to_string()))
+                    .unwrap_or_default();
+                format!("decimal({}, {})", scale, precision)
+            }
             DataType::Boolean => "bool".to_string(),
             DataType::Date => "date".to_string(),
             DataType::Time => "time".to_string(),
@@ -386,7 +454,8 @@ impl DataType {
         }
     }
 }
-macro_rules! datacell_to_string {
+
+macro_rules! impl_data_cell {
     ([], $({ $Variant:ident, $BasicType:ident }),*) => {
         #[derive(Debug, Clone)]
         pub enum DataCell {
@@ -485,7 +554,48 @@ macro_rules! get_all_datatype {
     };
 }
 
-get_all_datatype!(datacell_to_string);
+macro_rules! get_partial_datatype {
+    ( $macro:ident ) => {
+        $macro! {
+            [],
+            { int8, TinyInt },
+            { bit, Bit },
+            { int16, SmallInt },
+            { int32, Integer },
+            { int64, BigInt},
+            // { fwchar, Char},
+            { varchar, Varchar},
+            { text, Text},
+            { boolean, Boolean},
+            { float,  Float},
+            { double, Double},
+            // { decimal, Decimal},
+            { date, Date},
+            { time, Time},
+            { datetime, DateTime},
+            { timestamp, TimeStamp}
+            // { unknown, Unknown}
+
+            // Null = 0x06,
+            // Year = 0x0d,
+            // Bit = 0x10,
+            // Json = 0xf5,
+            // NewDecimal = 0xf6,
+            // Enum = 0xf7,
+            // Set = 0xf8,
+            // TinyBlob = 0xf9,
+            // MediumBlob = 0xfa,
+            // LongBlob = 0xfb,
+            // Blob = 0xfc,
+            // VarString = 0xfd,
+            // String = 0xfe,
+            // Geometry = 0xff,
+        }
+    };
+}
+
+get_all_datatype!(impl_data_cell);
+// get_partial_datatype!(impl_data_type);
 
 #[cfg(test)]
 mod test {

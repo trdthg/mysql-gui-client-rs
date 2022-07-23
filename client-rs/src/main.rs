@@ -6,22 +6,29 @@ mod frontend;
 mod theme;
 mod util;
 
-use backend::{article, database, Backend, Repo};
 use config::Config;
 use frontend::{App, State};
 use tracing::Level;
 
-pub fn new() -> (Backend, App) {
-    let (article_consumer, article_producer) = article::make_service();
-    let (sql_sender, sql_executor) = database::make_service();
-    let repo = Repo {
+pub fn new() -> (backend::Backend, App) {
+    #[cfg(feature = "article")]
+    let (article_consumer, article_producer) = backend::article::make_service();
+    #[cfg(feature = "database")]
+    let (sql_sender, sql_executor) = backend::database::make_service();
+    let repo = backend::Repo {
+        #[cfg(feature = "article")]
         article_client: article_consumer,
+        #[cfg(feature = "database")]
         database_client: sql_sender,
     };
-    let servers = vec![article_producer, sql_executor];
+    let mut servers = vec![];
+    #[cfg(feature = "article")]
+    servers.push(article_producer);
+    #[cfg(feature = "database")]
+    servers.push(sql_executor);
 
     (
-        Backend { servers },
+        backend::Backend { servers },
         App {
             state: State::new(repo),
             config: Config::new(),

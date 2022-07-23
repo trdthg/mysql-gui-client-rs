@@ -139,10 +139,6 @@ impl DataBase {
                     if let Some(conn) = self.conns.borrow_mut().get_conn_mut(&conn) {
                         conn.databases = Some(data);
                     }
-                    // // 更新 table 可选的连接
-                    // self.table.update_avaliable_conns(
-                    //     self.conns.borrow().keys().map(|x| x.to_owned()).collect(),
-                    // );
                     // 更新侧边栏
                     self.sidebar.update_conns(self.conns.clone());
                     // 更新表格

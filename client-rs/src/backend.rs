@@ -1,9 +1,14 @@
+#[cfg(feature = "article")]
 pub mod article;
+#[cfg(feature = "database")]
 pub mod database;
+#[cfg(feature = "talk")]
 pub mod talk;
 
+#[cfg(feature = "article")]
 use article::ArticleClient;
 use async_trait::async_trait;
+#[cfg(feature = "database")]
 use database::DatabaseClient;
 use tokio::sync::mpsc::{
     error::{SendError, TryRecvError},
@@ -42,7 +47,9 @@ pub fn make_chan<S, D>() -> Channels<S, D> {
 }
 
 pub struct Repo {
+    #[cfg(feature = "article")]
     pub article_client: ArticleClient,
+    #[cfg(feature = "database")]
     pub database_client: DatabaseClient,
 }
 

@@ -2,39 +2,50 @@ use eframe::{
     egui::{self, Button, Context, Layout, RichText, TopBottomPanel},
     emath::Vec2,
 };
+#[cfg(feature = "article")]
 mod article;
 mod component;
+#[cfg(feature = "database")]
 pub mod database;
 mod setting;
+#[cfg(feature = "talk")]
 mod talk;
 mod test;
 
 use crate::{backend::Repo, config::Config};
 
-use self::{article::Article, database::DataBase, setting::Setting, talk::Talk, test::Test};
+#[cfg(feature = "article")]
+use self::article::Article;
+#[cfg(feature = "database")]
+use self::database::DataBase;
+#[cfg(feature = "talk")]
+use self::talk::Talk;
+use self::{setting::Setting, test::Test};
 
 pub struct State {
-    article: Article,
+    #[cfg(feature = "database")]
     database: DataBase,
+    #[cfg(feature = "talk")]
     talk: Talk,
+    #[cfg(feature = "article")]
+    article: Article,
     setting: Setting,
     test: Test,
-    // #[cfg(feature = "http")]
     selected: String,
 }
 impl State {
     pub fn new(repo: Repo) -> Self {
-        let database = DataBase::new(repo.database_client);
-        let article = Article::new(repo.article_client);
         let setting = Setting::new(Config::new());
         let test = Default::default();
-        let talk = Talk::new();
         Self {
-            article,
-            database,
-            setting,
-            talk,
+            // #[cfg(feature = "database")]
+            database: DataBase::new(repo.database_client),
+            #[cfg(feature = "talk")]
+            talk: Talk::new(),
+            #[cfg(feature = "article")]
+            article: Article::new(repo.article_client),
             test,
+            setting,
             selected: String::new(),
         }
     }
@@ -137,27 +148,32 @@ impl App {
     }
 
     fn apps_iter_mut(&mut self) -> impl Iterator<Item = (&str, &str, &mut dyn eframe::App)> {
-        let vec = vec![
-            (
-                "✨ 数据库",
-                "databae",
-                &mut self.state.database as &mut dyn eframe::App,
-            ),
-            // (
-            //     "✨ Redis",
-            //     "databae",
-            //     &mut self.state.redis as &mut dyn eframe::App,
-            // ),
-            (
-                "📓 文章",
-                "article",
-                &mut self.state.article as &mut dyn eframe::App,
-            ),
-            (
-                "⛭ 聊天", // 齿轮 🔨 🔧
-                "talk",
-                &mut self.state.talk as &mut dyn eframe::App,
-            ),
+        let mut vec = vec![];
+        #[cfg(feature = "database")]
+        vec.push((
+            "✨ 数据库",
+            "databae",
+            &mut self.state.database as &mut dyn eframe::App,
+        ));
+        #[cfg(feature = "article")]
+        vec.push((
+            "📓 文章",
+            "article",
+            &mut self.state.article as &mut dyn eframe::App,
+        ));
+        #[cfg(feature = "talk")]
+        vec.push((
+            "⛭ 聊天", // 齿轮 🔨 🔧
+            "talk",
+            &mut self.state.talk as &mut dyn eframe::App,
+        ));
+        // #[cfg(feature = "redis")]
+        // vec.push((
+        //     "✨ Redis",
+        //     "databae",
+        //     &mut self.state.redis as &mut dyn eframe::App,
+        // ));
+        vec.extend([
             (
                 "⛭ 设置", // 齿轮 🔨 🔧
                 "setting",
@@ -168,9 +184,8 @@ impl App {
                 "test",
                 &mut self.state.test as &mut dyn eframe::App,
             ),
-        ];
+        ]);
 
-        // #[cfg(feature = "http")]
         // "⬇ HTTP",
         // "🔺 3D painting",
         // "colors",
