@@ -19,7 +19,7 @@ pub struct DataBase {
     sidebar: SideBar,
     table: TableComponent,
     config_new_conn: config_new_conn::ConfigNewConnWindow,
-    s: UnboundedSender<message::Message>,
+    s: UnboundedSender<message::Request>,
     r: UnboundedReceiver<message::Response>,
 }
 
@@ -91,7 +91,7 @@ impl DataBase {
                 for config in configs {
                     if let Err(e) = self
                         .s
-                        .send(message::Message::Connect { config, save: true })
+                        .send(message::Request::Connect { config, save: true })
                     {
                         tracing::error!("后端未正常启动：{}", e);
                     }

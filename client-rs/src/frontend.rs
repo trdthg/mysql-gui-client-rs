@@ -10,6 +10,7 @@ pub mod database;
 mod setting;
 #[cfg(feature = "talk")]
 mod talk;
+#[cfg(feature = "test")]
 mod test;
 
 use crate::{backend::Repo, config::Config};
@@ -18,9 +19,11 @@ use crate::{backend::Repo, config::Config};
 use self::article::Article;
 #[cfg(feature = "database")]
 use self::database::DataBase;
+use self::setting::Setting;
 #[cfg(feature = "talk")]
 use self::talk::Talk;
-use self::{setting::Setting, test::Test};
+#[cfg(feature = "dev")]
+use test::Test;
 
 pub struct State {
     #[cfg(feature = "database")]
@@ -30,13 +33,12 @@ pub struct State {
     #[cfg(feature = "article")]
     article: Article,
     setting: Setting,
+    #[cfg(feature = "dev")]
     test: Test,
     selected: String,
 }
 impl State {
     pub fn new(repo: Repo) -> Self {
-        let setting = Setting::new(Config::new());
-        let test = Default::default();
         Self {
             // #[cfg(feature = "database")]
             database: DataBase::new(repo.database_client),
@@ -44,8 +46,9 @@ impl State {
             talk: Talk::new(),
             #[cfg(feature = "article")]
             article: Article::new(repo.article_client),
-            test,
-            setting,
+            #[cfg(feature = "test")]
+            test: test::Test::default(),
+            setting: Setting::new(Config::new()),
             selected: String::new(),
         }
     }
@@ -167,24 +170,23 @@ impl App {
             "talk",
             &mut self.state.talk as &mut dyn eframe::App,
         ));
+        #[cfg(feature = "test")]
+        vec.push((
+            "🎮 测试",
+            "test",
+            &mut self.state.test as &mut dyn eframe::App,
+        ));
         // #[cfg(feature = "redis")]
         // vec.push((
         //     "✨ Redis",
         //     "databae",
         //     &mut self.state.redis as &mut dyn eframe::App,
         // ));
-        vec.extend([
-            (
-                "⛭ 设置", // 齿轮 🔨 🔧
-                "setting",
-                &mut self.state.setting as &mut dyn eframe::App,
-            ),
-            (
-                "🎮 测试",
-                "test",
-                &mut self.state.test as &mut dyn eframe::App,
-            ),
-        ]);
+        vec.extend([(
+            "⛭ 设置", // 齿轮 🔨 🔧
+            "setting",
+            &mut self.state.setting as &mut dyn eframe::App,
+        )]);
 
         // "⬇ HTTP",
         // "🔺 3D painting",

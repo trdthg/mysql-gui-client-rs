@@ -18,6 +18,7 @@ impl Setting {
 
 impl Setting {
     pub fn ui(&mut self, ui: &mut eframe::egui::Ui, ctx: &Context) {
+        #[cfg(feature = "test")]
         ctx.settings_ui(ui);
         self.config.update(ctx);
         ui.collapsing("Theme", |ui| {

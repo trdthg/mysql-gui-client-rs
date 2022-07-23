@@ -11,7 +11,7 @@ use super::Conns;
 pub struct SideBar {
     pub open: bool,
     pub conns: Conns,
-    pub s: UnboundedSender<message::Message>,
+    pub s: UnboundedSender<message::Request>,
     pub hovered_widgt_id: Option<Id>,
 }
 
@@ -20,7 +20,7 @@ impl SideBar {
         self.open = !self.open;
     }
 
-    pub fn new(s: UnboundedSender<message::Message>) -> SideBar {
+    pub fn new(s: UnboundedSender<message::Request>) -> SideBar {
         Self {
             open: true,
             conns: Conns::default(),
@@ -76,23 +76,25 @@ impl SideBar {
                                     // }
                                     table_collapsing.header_response.context_menu(|ui| {
                                         if ui.button("刷新").clicked() {
-                                            let fields = &self
+                                            if let Some(fields) = self
                                                 .conns
                                                 .borrow()
                                                 .get_fields(conn_name, db_name, table_name)
-                                                .and_then(|x| Some(x.to_owned()));
-                                            let fields = Some(Box::new(fields.to_owned().unwrap()));
-                                            if let Err(e) = self.s.send(message::Message::Select {
-                                                conn: conn.config.get_name(),
-                                                db: Some(db_name.to_string()),
-                                                table: Some(table_name.to_string()),
-                                                r#type: message::SelectType::Table,
-                                                sql: sqls::select_by_page(
-                                                    db_name, table_name, None, None,
-                                                ),
-                                                fields,
-                                            }) {
-                                                tracing::error!("查询数据表失败：{}", e);
+                                                .and_then(|x| Some(x))
+                                            {
+                                                if let Err(e) =
+                                                    self.s.send(message::Request::SelectTable {
+                                                        conn: conn.config.get_name(),
+                                                        db: db_name.to_string(),
+                                                        table: table_name.to_string(),
+                                                        sql: sqls::select_by_page(
+                                                            db_name, table_name, None, None,
+                                                        ),
+                                                        fields: Box::new(fields.to_owned()),
+                                                    })
+                                                {
+                                                    tracing::error!("查询数据表失败：{}", e);
+                                                }
                                             }
                                         }
                                     });
@@ -120,15 +122,12 @@ impl SideBar {
                                 ui.vertical_centered_justified(|ui| {
                                     ui.spacing();
                                     if ui.button("刷新").clicked() {
-                                        let sql = sqls::get_table_meta(&db.name);
-                                        if let Err(e) = self.s.send(message::Message::Select {
-                                            conn: conn.config.get_name(),
-                                            db: Some(db_name.to_string()),
-                                            table: None,
-                                            r#type: message::SelectType::Tables,
-                                            sql,
-                                            fields: None,
-                                        }) {
+                                        if let Err(e) =
+                                            self.s.send(message::Request::SelectTables {
+                                                conn: conn.config.get_name(),
+                                                db: db_name.to_string(),
+                                            })
+                                        {
                                             tracing::error!("查询数据库失败：{}", e);
                                         }
                                     };
@@ -156,13 +155,8 @@ impl SideBar {
                     ui.vertical_centered_justified(|ui| {
                         ui.spacing();
                         if ui.button("刷新").clicked() {
-                            if let Err(e) = self.s.send(message::Message::Select {
+                            if let Err(e) = self.s.send(message::Request::SelectDatabases {
                                 conn: conn.config.get_name(),
-                                db: None,
-                                table: None,
-                                r#type: message::SelectType::Databases,
-                                sql: sqls::get_databases(),
-                                fields: None,
                             }) {
                                 tracing::error!("查询数据库失败：{}", e);
                             }

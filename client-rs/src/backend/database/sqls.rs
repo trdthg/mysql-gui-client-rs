@@ -1,9 +1,5 @@
 use super::datatype::DataType;
 
-pub fn get_databases() -> String {
-    format!("SHOW DATABASES;")
-}
-
 pub fn get_table_meta(database_name: &str) -> String {
     format!(
         r#"SELECT

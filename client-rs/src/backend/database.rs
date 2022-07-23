@@ -14,7 +14,7 @@ use crate::frontend::database::types::{ColumnKey, Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
-    message::{ConnectionConfig, Message, Response, SelectType},
+    message::{ConnectionConfig, Request, Response},
 };
 
 use super::{make_chan, Channels, Client, Server};
@@ -84,7 +84,7 @@ impl Conns {
     // }
 }
 
-type S = Message;
+type S = Request;
 type D = Response;
 
 pub struct DatabaseServer {
@@ -136,22 +136,190 @@ impl Server for DatabaseServer {
                 let s = self.s.clone();
                 let conns = self.conns.clone();
                 match msg {
-                    Message::Connect { config, save } => {
+                    Request::Connect { config, save } => {
                         tokio::task::spawn(async move {
                             handle_connect(conns, s, config, save).await;
                         });
                     }
-                    Message::Select {
+                    Request::SelectDatabases { conn } => {
+                        let mut query_builder = sqlx::QueryBuilder::new(format!("show databases"));
+                        let query = query_builder.build();
+                        let sql = query.sql();
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            continue;
+                        }
+                        let pool = pool.unwrap();
+                        match query.fetch_all(&pool).await {
+                            Ok(rows) => {
+                                let metas = rows
+                                    .iter()
+                                    .map(|x| {
+                                        let name: String = x.get(0);
+                                        (name.clone(), DB { name, tables: None })
+                                    })
+                                    .collect();
+                                s.send(message::Response::Databases { conn, data: metas });
+                            }
+                            Err(e) => {
+                                let msg = format!("查询失败：{}", e);
+                                tracing::error!(msg);
+                            }
+                        }
+                    }
+                    Request::SelectTables { conn, db } => {
+                        let sql = sqls::get_table_meta(&db);
+                        let mut query_builder = sqlx::QueryBuilder::new(format!("{}", sql));
+                        let query = query_builder.build();
+                        let sql = query.sql();
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            continue;
+                        }
+                        let pool = pool.unwrap();
+                        match query.fetch_all(&pool).await {
+                            Ok(rows) => {
+                                tracing::info!("查询数量 {}", rows.len());
+                                let data: Vec<sqls::FieldMeta> =
+                                    rows.iter().map(|x| x.into()).collect();
+                                tracing::info!("总字段数：{}", data.len());
+                                let mut map: BTreeMap<String, Vec<Field>> = BTreeMap::new();
+                                for row in data.into_iter() {
+                                    let table_name = row.table_name.clone();
+                                    let table_name = table_name.as_str();
+                                    let field = Field {
+                                        name: row.column_name.to_owned(),
+                                        r#type: row.get_type(),
+                                        column_type: row.column_type,
+                                        column_key: match row.column_key.as_deref() {
+                                            Some("PRI") => ColumnKey::Primary,
+                                            Some(_) => ColumnKey::None,
+                                            None => ColumnKey::None,
+                                        },
+                                        is_nullable: if row.is_nullable == "YES" {
+                                            true
+                                        } else {
+                                            false
+                                        }, // 是否可以为空
+                                           // datatype: row.get_type(),
+                                           // details: row,
+                                    };
+                                    if map.contains_key(table_name) {
+                                        map.get_mut(table_name).unwrap().push(field);
+                                    } else {
+                                        map.insert(table_name.to_owned(), vec![field]);
+                                    }
+                                }
+                                // for (db, fields) in map.iter() {
+                                //     tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
+                                //     for field in fields {
+                                //         tracing::trace!("名称： {}  类型：{}", field.name, field.column_type,);
+                                //     }
+                                // }
+                                s.send(message::Response::Tables {
+                                    conn,
+                                    db,
+                                    data: Box::new(map),
+                                });
+                            }
+                            Err(e) => {
+                                let msg = format!("查询失败：{}", e);
+                                tracing::error!(msg);
+                            }
+                        }
+                    }
+                    Request::SelectTable {
                         conn,
                         db,
                         table,
                         fields,
-                        r#type,
                         sql,
                     } => {
-                        handle_select(conns, s, conn, db, table, fields, r#type, sql).await;
+                        //
+                        let mut query_builder = sqlx::QueryBuilder::new(format!("{}", sql));
+                        let query = query_builder.build();
+                        let sql = query.sql();
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            continue;
+                        }
+                        let pool = pool.unwrap();
+                        match query.fetch_all(&pool).await {
+                            Ok(rows) => {
+                                let mut datas: TableRows =
+                                    Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
+                                for col in 0..fields.len() {
+                                    for (i, row) in rows.iter().enumerate() {
+                                        let cell = DataCell::from_mysql_row(
+                                            &row,
+                                            col,
+                                            &fields[col].r#type,
+                                            fields[col].is_nullable,
+                                        );
+                                        datas[i].push(cell.to_string());
+                                    }
+                                }
+                                s.send(message::Response::DataRows {
+                                    conn,
+                                    db: db,
+                                    table: table,
+                                    datas,
+                                    sql: sql.to_owned(),
+                                });
+                            }
+                            Err(e) => {
+                                let msg = format!("查询失败：{}", e);
+                                tracing::error!(msg);
+                            }
+                        }
                     }
-                    Message::Delete {
+                    Request::SelectCustomed { conn, sql } => {
+                        let mut query_builder = sqlx::QueryBuilder::new(format!("{}", sql));
+                        let query = query_builder.build();
+                        let sql = query.sql();
+                        let pool = conns.get_pool(conn.as_str()).await;
+                        if pool.is_none() {
+                            tracing::error!("获取数据库连接失败");
+                            continue;
+                        }
+                        let pool = pool.unwrap();
+                        match query.fetch_all(&pool).await {
+                            Ok(rows) => {
+                                use sqlx::{Column, TypeInfo};
+                                let columns = rows[0].columns();
+                                let mut datas: TableRows =
+                                    Box::new(vec![Vec::with_capacity(columns.len()); rows.len()]);
+
+                                let mut fields = Box::new(Vec::with_capacity(columns.len()));
+                                for (col, field) in columns.iter().enumerate() {
+                                    let field_name = field.name();
+                                    let field_type =
+                                        DataType::from_uppercase(field.type_info().name());
+                                    for (i, row) in rows.iter().enumerate() {
+                                        let cell =
+                                            DataCell::from_mysql_row(&row, col, &field_type, true);
+                                        datas[i].push(cell.to_string());
+                                    }
+                                    fields.push(Field {
+                                        name: field_name.to_owned(),
+                                        column_type: field_type.to_string(),
+                                        column_key: ColumnKey::None,
+                                        r#type: field_type,
+                                        is_nullable: true,
+                                    });
+                                }
+                                s.send(message::Response::Customed { fields, datas });
+                            }
+                            Err(e) => {
+                                let msg = format!("查询失败：{}", e);
+                                tracing::error!(msg);
+                            }
+                        }
+                    }
+                    Request::Delete {
                         conn,
                         db,
                         table,
@@ -239,7 +407,7 @@ impl Server for DatabaseServer {
                             tracing::error!("返回删除结果失败：{}", e);
                         }
                     }
-                    Message::Insert {
+                    Request::Insert {
                         conn,
                         db,
                         table,
@@ -322,7 +490,7 @@ impl Server for DatabaseServer {
                             tracing::error!("返回插入结果失败：{}", e);
                         }
                     }
-                    Message::Update {
+                    Request::Update {
                         conn,
                         db,
                         table,
@@ -443,144 +611,6 @@ async fn handle_connect(conns: Conns, s: UnboundedSender<D>, config: ConnectionC
         tracing::error!("发送连接结果失败，GUI 可能停止工作：{}", e);
     } else {
         tracing::debug!("回复成功");
-    }
-}
-
-async fn handle_select(
-    conns: Conns,
-    s: UnboundedSender<D>,
-    conn: String,
-    db: Option<String>,
-    table: Option<String>,
-    fields: Option<Box<Vec<Field>>>,
-    r#type: SelectType,
-    sql: String,
-) {
-    let pool = conns.get_pool(conn.as_str()).await;
-    if pool.is_none() {
-        tracing::error!("获取数据库连接失败");
-        return;
-    }
-    let pool = pool.unwrap();
-    let rows = sqlx::query(&sql).fetch_all(&pool).await;
-    if rows.is_err() {
-        tracing::error!("查询数据失败");
-        return;
-    }
-
-    let rows = rows.unwrap();
-    if let Err(e) = match r#type {
-        SelectType::Databases => {
-            let metas = rows
-                .iter()
-                .map(|x| {
-                    let name: String = x.get(0);
-                    (name.clone(), DB { name, tables: None })
-                })
-                .collect();
-            s.send(message::Response::Databases { conn, data: metas })
-        }
-        SelectType::Tables => {
-            tracing::info!("查询数量 {}", rows.len());
-            let data: Vec<sqls::FieldMeta> = rows.iter().map(|x| x.into()).collect();
-            tracing::info!("总字段数：{}", data.len());
-            let mut map: BTreeMap<String, Vec<Field>> = BTreeMap::new();
-            for row in data.into_iter() {
-                let table_name = row.table_name.clone();
-                let table_name = table_name.as_str();
-                let field = Field {
-                    name: row.column_name.to_owned(),
-                    r#type: row.get_type(),
-                    column_type: row.column_type,
-                    column_key: match row.column_key.as_deref() {
-                        Some("PRI") => ColumnKey::Primary,
-                        Some(_) => ColumnKey::None,
-                        None => ColumnKey::None,
-                    },
-                    is_nullable: if row.is_nullable == "YES" {
-                        true
-                    } else {
-                        false
-                    }, // 是否可以为空
-                       // datatype: row.get_type(),
-                       // details: row,
-                };
-                if map.contains_key(table_name) {
-                    map.get_mut(table_name).unwrap().push(field);
-                } else {
-                    map.insert(table_name.to_owned(), vec![field]);
-                }
-            }
-            // for (db, fields) in map.iter() {
-            //     tracing::debug!("表名：{}  字段数量：{}", db, fields.len());
-            //     for field in fields {
-            //         tracing::trace!("名称： {}  类型：{}", field.name, field.column_type,);
-            //     }
-            // }
-            s.send(message::Response::Tables {
-                conn,
-                db: db.unwrap(),
-                data: Box::new(map),
-            })
-        }
-        SelectType::Table => {
-            if fields.is_none() || table.is_none() {
-                return;
-            }
-            let fields = fields.unwrap();
-            let mut datas: TableRows = Box::new(vec![Vec::with_capacity(fields.len()); rows.len()]);
-            for col in 0..fields.len() {
-                for (i, row) in rows.iter().enumerate() {
-                    let cell = DataCell::from_mysql_row(
-                        &row,
-                        col,
-                        &fields[col].r#type,
-                        fields[col].is_nullable,
-                    );
-                    datas[i].push(cell.to_string());
-                }
-            }
-            s.send(message::Response::DataRows {
-                conn,
-                db: db.unwrap(),
-                table: table.unwrap(),
-                datas,
-                sql,
-            })
-        }
-        SelectType::Customed => {
-            if rows.is_empty() {
-                s.send(message::Response::Customed {
-                    fields: Box::new(vec![]),
-                    datas: Box::new(vec![]),
-                })
-            } else {
-                use sqlx::{Column, TypeInfo};
-                let columns = rows[0].columns();
-                let mut datas: TableRows =
-                    Box::new(vec![Vec::with_capacity(columns.len()); rows.len()]);
-
-                let mut fields = Box::new(Vec::with_capacity(columns.len()));
-                for (col, field) in columns.iter().enumerate() {
-                    let field_name = field.name();
-                    let field_type = DataType::from_uppercase(field.type_info().name());
-                    for (i, row) in rows.iter().enumerate() {
-                        let cell = DataCell::from_mysql_row(&row, col, &field_type, true);
-                        datas[i].push(cell.to_string());
-                    }
-                    fields.push(Field {
-                        name: field_name.to_owned(),
-                        column_type: field_type.to_string(),
-                        column_key: ColumnKey::None,
-                        r#type: field_type,
-                        is_nullable: true,
-                    });
-                }
-                s.send(message::Response::Customed { fields, datas })
-            }
-        }
-    } {
-        tracing::error!("查询数据失败 {}", e);
     }
 }
 

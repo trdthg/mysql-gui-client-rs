@@ -1,16 +1,26 @@
 use crate::frontend::database::types::{Databases, Field, TableRows, Tables};
 
-pub enum Message {
+pub enum Request {
     Connect {
         config: ConnectionConfig,
         save: bool,
     },
-    Select {
+    SelectDatabases {
         conn: String,
-        db: Option<String>,
-        table: Option<String>,
-        fields: Option<Box<Vec<Field>>>,
-        r#type: SelectType,
+    },
+    SelectTables {
+        conn: String,
+        db: String,
+    },
+    SelectTable {
+        conn: String,
+        db: String,
+        table: String,
+        fields: Box<Vec<Field>>,
+        sql: String,
+    },
+    SelectCustomed {
+        conn: String,
         sql: String,
     },
     Delete {
@@ -38,12 +48,8 @@ pub enum Message {
     },
 }
 
-pub enum SelectType {
-    Databases,
-    Tables,
-    Table,
-    Customed,
-}
+pub enum Select {}
+// orders: Option<Box<Vec<Option<bool>>>>,
 
 pub enum Response {
     NewConn {

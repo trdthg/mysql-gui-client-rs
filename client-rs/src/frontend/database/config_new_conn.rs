@@ -13,7 +13,7 @@ pub struct ConfigNewConnWindow {
 }
 
 impl ConfigNewConnWindow {
-    pub fn run(&mut self, s: &UnboundedSender<message::Message>, ctx: &Context) {
+    pub fn run(&mut self, s: &UnboundedSender<message::Request>, ctx: &Context) {
         eframe::egui::Window::new("配置新的连接")
             .open(&mut self.tmp_config_open)
             .show(ctx, |ui| {
@@ -38,7 +38,7 @@ impl ConfigNewConnWindow {
                         let mut test_btn = ui.button("测试连接");
                         test_btn = test_btn.on_hover_text("仅测试，不添加到侧边栏");
                         if conn_btn.clicked() {
-                            if let Err(e) = s.send(database::message::Message::Connect {
+                            if let Err(e) = s.send(database::message::Request::Connect {
                                 config: self.tmp_config.clone(),
                                 save: true,
                             }) {
@@ -47,7 +47,7 @@ impl ConfigNewConnWindow {
                             tracing::info!("发送连接请求成功");
                         }
                         if test_btn.clicked() {
-                            if let Err(e) = s.send(database::message::Message::Connect {
+                            if let Err(e) = s.send(database::message::Request::Connect {
                                 config: self.tmp_config.clone(),
                                 save: false,
                             }) {
