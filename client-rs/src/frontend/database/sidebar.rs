@@ -87,10 +87,10 @@ impl SideBar {
                                                         conn: conn.config.get_name(),
                                                         db: db_name.to_string(),
                                                         table: table_name.to_string(),
-                                                        sql: sqls::select_by_page(
-                                                            db_name, table_name, None, None,
-                                                        ),
+                                                        page: 0,
+                                                        size: 100,
                                                         fields: Box::new(fields.to_owned()),
+                                                        orders: None,
                                                     })
                                                 {
                                                     tracing::error!("查询数据表失败：{}", e);

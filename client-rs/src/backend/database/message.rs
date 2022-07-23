@@ -16,8 +16,10 @@ pub enum Request {
         conn: String,
         db: String,
         table: String,
+        page: usize,
+        size: usize,
         fields: Box<Vec<Field>>,
-        sql: String,
+        orders: Option<Box<Vec<Option<bool>>>>,
     },
     SelectCustomed {
         conn: String,

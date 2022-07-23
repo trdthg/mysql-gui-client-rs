@@ -108,38 +108,23 @@ impl Table {
         });
     }
 
-    pub fn resend(&self) {
-        if let Some(meta) = self.meta.as_ref() {
-            let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let sql =
-                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
-            if let Err(e) = self.s.send(message::Request::SelectTable {
-                conn: meta.conn_name.to_owned(),
-                db: meta.db_name.to_owned(),
-                table: meta.table_name.to_owned(),
-                fields: meta.fields.to_owned(),
-                sql,
-            }) {
-                tracing::error!("翻页请求失败：{}", e);
-            }
-        }
+    pub fn reset(&mut self) {
+        self.editctl.select_row = None;
+        self.editctl.adding_new_row = false;
     }
 
-    pub fn refresh(&mut self) {
+    pub fn refresh(&self) {
         if let Some(meta) = self.meta.as_ref() {
-            self.editctl.select_row = None;
-            self.editctl.adding_new_row = false;
             let page = self.tablectl.page.parse::<usize>().and_then(|x| Ok(x)).ok();
             let size = self.tablectl.size.parse::<usize>().and_then(|x| Ok(x)).ok();
-            let sql =
-                sqls::select_by_page(meta.db_name.as_str(), meta.table_name.as_str(), page, size);
             if let Err(e) = self.s.send(message::Request::SelectTable {
                 conn: meta.conn_name.to_owned(),
                 db: meta.db_name.to_owned(),
                 table: meta.table_name.to_owned(),
                 fields: meta.fields.to_owned(),
-                sql,
+                page: page.unwrap_or(0),
+                size: size.unwrap_or(100),
+                orders: Some(self.tablectl.orders.to_owned()),
             }) {
                 tracing::error!("翻页请求失败：{}", e);
             }
@@ -148,7 +133,16 @@ impl Table {
 
     pub fn update_content_and_refresh(&mut self, meta: Box<TableMeta>) {
         self.editctl.input_caches = Box::new(vec![None; meta.fields.len()]);
-        self.tablectl.orders = Box::new(vec![None; meta.fields.len()]);
+        if let Some(old_meta) = &self.meta {
+            if old_meta.conn_name != meta.conn_name
+                || old_meta.db_name != meta.db_name
+                || old_meta.table_name != meta.table_name
+            {
+                self.tablectl.orders = Box::new(vec![None; meta.fields.len()]);
+            }
+        } else {
+            self.tablectl.orders = Box::new(vec![None; meta.fields.len()]);
+        }
         self.tablectl.filter_indexs = (0..meta.datas.len()).map(|x| x).collect();
         self.meta = Some(meta);
     }
@@ -454,6 +448,7 @@ impl Table {
         let row_len = datas.len();
         let col_len = fields.len();
 
+        // 构造表格
         // tracing::info!("字段数量：{}", fields.len(),);
         let mut tb = TableBuilder::new(ui)
             .striped(true)
@@ -461,7 +456,7 @@ impl Table {
             .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
             .resizable(true);
 
-        // 设置单选列
+        // 设置列数,列宽
         tb = tb.column(Size::Absolute {
             initial: 50.,
             range: (0., 400.),
@@ -478,6 +473,7 @@ impl Table {
             }
         }
 
+        // 设置表头
         // tracing::info!("构造 header...");
         let tb = tb.header(40.0, |mut header| {
             header.col(|ui| {
@@ -492,6 +488,7 @@ impl Table {
                         .clicked()
                     {
                         if let Some(order) = self.tablectl.orders.get_mut(i) {
+                            tracing::info!("{:?}", order);
                             *order = {
                                 match order {
                                     Some(true) => Some(false),
@@ -500,14 +497,15 @@ impl Table {
                                 }
                             };
                         }
-                        // self.s.send(message::Request::Select {
-                        //     conn: meta.conn_name.to_owned(),
-                        //     db: Some(meta.db_name.to_owned()),
-                        //     table: Some(meta.table_name.to_owned()),
-                        //     fields: Some(meta.fields.to_owned()),
-                        //     orders: self.tablectl.orders,
-                        //     r#type: message::SelectType::Table,
-                        // });
+                        self.s.send(message::Request::SelectTable {
+                            conn: meta.conn_name.to_owned(),
+                            db: meta.db_name.to_owned(),
+                            table: meta.table_name.to_owned(),
+                            fields: meta.fields.to_owned(),
+                            orders: Some(self.tablectl.orders.to_owned()),
+                            page: 0,
+                            size: 100,
+                        });
                     }
                     // ui.vertical_centered_justified(|ui| {
                     //     ui.heading(&field.name);
@@ -517,8 +515,8 @@ impl Table {
                 });
             }
         });
-        // tracing::info!("构造 body...");
 
+        // 渲染表格数据
         tb.body(|mut body| {
             let height = 18.0 * 2.;
 

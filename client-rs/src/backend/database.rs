@@ -235,10 +235,53 @@ impl Server for DatabaseServer {
                         db,
                         table,
                         fields,
-                        sql,
+                        page,
+                        size,
+                        orders,
                     } => {
-                        //
-                        let mut query_builder = sqlx::QueryBuilder::new(format!("{}", sql));
+                        let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM ");
+                        query_builder
+                            .push(db.as_str())
+                            .push(".")
+                            .push(table.as_str());
+
+                        if let Some(orders) = orders {
+                            let arr: Vec<usize> = orders
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, x)| x.is_some())
+                                .map(|(i, _)| i)
+                                .collect();
+                            if arr.len() > 0 {
+                                query_builder
+                                    .push(" ORDER BY ")
+                                    .push(fields[arr[0]].name.as_str())
+                                    .push(if *orders[arr[0]].as_ref().unwrap() {
+                                        " ASC "
+                                    } else {
+                                        " DESC "
+                                    });
+
+                                let arr = &arr[1..];
+                                for i in arr.iter() {
+                                    query_builder
+                                        .push(" , ")
+                                        .push(fields[*i].name.as_str())
+                                        .push(if *orders[arr[0]].as_ref().unwrap() {
+                                            " ASC "
+                                        } else {
+                                            " DESC "
+                                        });
+                                }
+                            }
+                        }
+
+                        query_builder
+                            .push(" LIMIT ")
+                            .push((page * size).to_string())
+                            .push(", ")
+                            .push(size.to_string());
+
                         let query = query_builder.build();
                         let sql = query.sql();
                         let pool = conns.get_pool(conn.as_str()).await;

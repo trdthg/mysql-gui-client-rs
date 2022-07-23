@@ -90,20 +90,3 @@ mod test {
         println!("{}", sql);
     }
 }
-
-pub fn select_by_page(
-    db_name: &str,
-    table_name: &str,
-    page: Option<usize>,
-    size: Option<usize>,
-) -> String {
-    let page = page.unwrap_or(0);
-    let size = size.unwrap_or(100);
-    format!(
-        "SELECT * FROM {}.{} LIMIT {},{}",
-        db_name,
-        table_name,
-        page * size,
-        size
-    )
-}
