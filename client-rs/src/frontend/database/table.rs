@@ -4,7 +4,7 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::backend::database::{message, sqls};
+use crate::backend::database::message;
 
 use super::types::{Conns, Field, TableRows};
 
@@ -290,7 +290,7 @@ impl Table {
             .show(ui);
 
         sql_editor_output.response.on_hover_ui(|ui| {
-            ui.label("只能用于查询, 暂时不支持增删改等操作");
+            ui.label("只能用于查询，暂时不支持增删改等操作");
         });
 
         // if let Some(text_cursor_range) = sql_editor_output.cursor_range {
@@ -453,10 +453,13 @@ impl Table {
         let mut tb = TableBuilder::new(ui)
             .striped(true)
             .scroll(true)
-            .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+            .cell_layout(
+                egui::Layout::left_to_right(eframe::emath::Align::Min)
+                    .with_cross_align(egui::Align::Center),
+            )
             .resizable(true);
 
-        // 设置列数,列宽
+        // 设置列数，列宽
         tb = tb.column(Size::Absolute {
             initial: 50.,
             range: (0., 400.),

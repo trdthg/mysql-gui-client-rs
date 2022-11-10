@@ -31,7 +31,7 @@ impl ConfigNewConnWindow {
                 // if input_5.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {}
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), 0.),
-                    Layout::right_to_left(),
+                    Layout::right_to_left(eframe::emath::Align::Center),
                     |ui| {
                         let mut conn_btn = ui.button("连接并保存");
                         conn_btn = conn_btn.on_hover_text("新建一个新的数据库连接，并添加至侧边栏");

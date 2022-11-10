@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 # 核心
-eframe = { version = "0.18", features = ["persistence"] }
-egui_extras = { version = "0.18", features = ["serde"] }
+eframe = { version = "0.19", features = ["persistence"] }
+egui_extras = { version = "0.19", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 
@@ -33,6 +33,10 @@ bigdecimal = "0.3"
 # 文章
 reqwest = { version = "0.11", features = ["json"] }
 ureq = { version = "2.4", features = ["json"] }
+
+[dev-dependencies]
+gilrs = "0.9.0"
+
 
 [profile.release]
 code-units = 1

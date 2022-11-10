@@ -36,7 +36,6 @@ impl SideBar {
     pub fn update(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         for (conn_name, conn) in self.conns.borrow().iter() {
             if conn.conn.is_none() {
-                ui.label(format!("{}", conn.config.get_name()));
                 ui.colored_label(Color32::RED, format!("{}", conn.config.get_name()));
                 continue;
             }

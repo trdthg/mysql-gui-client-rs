@@ -1,6 +1,7 @@
 use eframe::{
     egui::{self, Button, Context, Layout, RichText, TopBottomPanel},
     emath::Vec2,
+    epaint::Color32,
 };
 #[cfg(feature = "article")]
 mod article;
@@ -61,7 +62,6 @@ pub struct App {
 
 impl eframe::App for App {
     fn warm_up_enabled(&self) -> bool {
-        println!("绘制行吗？？？");
         false
     }
 
@@ -89,7 +89,7 @@ impl eframe::App for App {
 }
 
 impl App {
-    pub fn run(self) -> ! {
+    pub fn run(self) {
         let mut options = eframe::NativeOptions::default();
         options.resizable = true;
         options.vsync = true;
@@ -101,7 +101,7 @@ impl App {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 tracing::trace!("渲染头部 App 导航");
-                ui.with_layout(Layout::left_to_right(), |ui| {
+                ui.with_layout(Layout::left_to_right(eframe::emath::Align::Min), |ui| {
                     ui.label(RichText::new("App").heading());
                     let mut selected_anchor = self.state.selected.clone();
                     for (name, anchor, _app) in self.apps_iter_mut() {
@@ -119,18 +119,21 @@ impl App {
                 });
 
                 // 渲染右侧按钮
-                ui.with_layout(Layout::right_to_left(), |ui| {
+                ui.with_layout(Layout::right_to_left(eframe::emath::Align::Min), |ui| {
                     let close_btn = ui.add(Button::new("✖")); // ✕ ❌ ✖ ❎ ✅ ✔ ➕+
                     if close_btn.clicked() {
                         frame.quit();
                     }
                     if ctx.style().visuals.dark_mode {
-                        let theme_btn = ui.add(Button::new("🌙")); // 🌛 🌙 ⛭
+                        let theme_btn =
+                            ui.add(Button::new(RichText::new("🌙").color(Color32::GRAY))); // 🌛 🌙 ⛭
                         if theme_btn.clicked() {
                             ctx.set_visuals(egui::Visuals::light());
                         }
                     } else {
-                        let theme_btn = ui.add(Button::new("🔆")); // ⟳ 🔆 🔅 🌞
+                        let theme_btn = ui.add(Button::new(
+                            RichText::new("🔆").color(Color32::LIGHT_YELLOW),
+                        )); // ⟳ 🔆 🔅 🌞
                         if theme_btn.clicked() {
                             ctx.set_visuals(egui::Visuals::dark());
                         }

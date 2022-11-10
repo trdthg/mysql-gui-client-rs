@@ -36,7 +36,7 @@ pub fn new() -> (backend::Backend, App) {
     )
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
@@ -45,5 +45,5 @@ fn main() -> anyhow::Result<()> {
     std::thread::spawn(move || {
         backend.run();
     });
-    frontend.run()
+    frontend.run();
 }

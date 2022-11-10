@@ -98,7 +98,7 @@ impl DataBase {
                 }
             }
         }
-
+        tracing::info!("初始化成功");
         self.init = true;
     }
 
@@ -123,14 +123,14 @@ impl DataBase {
                         },
                     );
                     // 持久化连接
-                    if let Some(store) = frame.storage_mut() {
-                        let conns = self.conns.borrow();
-                        let configs: Vec<&ConnectionConfig> =
-                            conns.values().map(|x| &x.config).collect();
-                        if let Ok(s) = serde_json::to_string(&configs) {
-                            store.set_string("conns", s);
-                        }
-                    }
+                    // if let Some(store) = frame.storage_mut() {
+                    //     let conns = self.conns.borrow();
+                    //     let configs: Vec<&ConnectionConfig> =
+                    //         conns.values().map(|x| &x.config).collect();
+                    //     if let Ok(s) = serde_json::to_string(&configs) {
+                    //         store.set_string("conns", s);
+                    //     }
+                    // }
                     self.config_new_conn.close();
                     self.sidebar.update_conns(self.conns.clone()); // 更新
                 }

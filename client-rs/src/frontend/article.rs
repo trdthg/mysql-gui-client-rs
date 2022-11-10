@@ -89,7 +89,7 @@ impl Article {
                 // ui.style_mut().visuals.hyperlink_color = cfg.theme.colors.link;
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), 0.),
-                    Layout::right_to_left(),
+                    Layout::right_to_left(eframe::emath::Align::Min),
                     |ui| {
                         ui.add(egui::Hyperlink::from_label_and_url("阅读原文 ⤴", &a.url));
                     },

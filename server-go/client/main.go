@@ -40,7 +40,6 @@ func (c *Client) ReadInput() {
 
 }
 
-
 func main() {
 	flag.Parse()
 	client, err := NewClient()
@@ -49,7 +48,6 @@ func main() {
 		return
 	}
 
-	select {}
 	inputs := make(chan string, 3)
 	go func() {
 		sc := bufio.NewScanner(os.Stdin)
@@ -60,7 +58,7 @@ func main() {
 	}()
 	msgs := make(chan string, 100)
 	go func() {
-		msg, err := bufio.NewReader(conn).ReadString('\n')
+		msg, err := bufio.NewReader(client.conn).ReadString('\n')
 		if err != nil {
 			fmt.Printf("WARN: %s", err.Error())
 			return
@@ -70,7 +68,7 @@ func main() {
 	for {
 		select {
 		case input := <-inputs:
-			conn.Write([]byte(input))
+			client.conn.Write([]byte(input))
 		case msg := <-msgs:
 			fmt.Printf("%s", msg)
 		}
