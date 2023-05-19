@@ -1,21 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod backend;
+mod server;
 mod config;
-mod frontend;
+mod ui;
 mod theme;
 mod util;
 
 use config::Config;
-use frontend::{App, State};
+use ui::{App, State};
 use tracing::Level;
 
-pub fn new() -> (backend::Backend, App) {
+pub fn new() -> (server::Backend, App) {
     #[cfg(feature = "article")]
-    let (article_consumer, article_producer) = backend::article::make_service();
+    let (article_consumer, article_producer) = server::article::make_service();
     #[cfg(feature = "database")]
-    let (sql_sender, sql_executor) = backend::database::make_service();
-    let repo = backend::Repo {
+    let (sql_sender, sql_executor) = server::database::make_service();
+    let repo = server::Repo {
         #[cfg(feature = "article")]
         article_client: article_consumer,
         #[cfg(feature = "database")]
@@ -28,7 +28,7 @@ pub fn new() -> (backend::Backend, App) {
     servers.push(sql_executor);
 
     (
-        backend::Backend { servers },
+        server::Backend { servers },
         App {
             state: State::new(repo),
             config: Config::new(),

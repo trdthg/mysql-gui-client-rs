@@ -4,7 +4,7 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::backend::database::message;
+use crate::server::database::message;
 
 use super::types::{Conns, Field, TableRows};
 

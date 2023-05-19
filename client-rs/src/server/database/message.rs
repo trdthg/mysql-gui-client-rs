@@ -1,4 +1,4 @@
-use crate::frontend::database::types::{Databases, Field, TableRows, Tables};
+use crate::ui::database::types::{Databases, Field, TableRows, Tables};
 
 pub enum Request {
     Connect {

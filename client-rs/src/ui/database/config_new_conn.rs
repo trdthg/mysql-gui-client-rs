@@ -4,7 +4,7 @@ use eframe::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{backend::database::message, frontend::database};
+use crate::{server::database::message, ui::database};
 
 #[derive(Default)]
 pub struct ConfigNewConnWindow {
@@ -18,13 +18,13 @@ impl ConfigNewConnWindow {
             .open(&mut self.tmp_config_open)
             .show(ctx, |ui| {
                 ui.label(RichText::new("请输入 IP"));
-                let input_1 = ui.text_edit_singleline(&mut self.tmp_config.ip);
+                let _input_1 = ui.text_edit_singleline(&mut self.tmp_config.ip);
                 ui.label(RichText::new("请输入 Port"));
-                let input_2 = ui.text_edit_singleline(&mut self.tmp_config.port);
+                let _input_2 = ui.text_edit_singleline(&mut self.tmp_config.port);
                 ui.label(RichText::new("请输入 用户名"));
-                let input_3 = ui.text_edit_singleline(&mut self.tmp_config.username);
+                let _input_3 = ui.text_edit_singleline(&mut self.tmp_config.username);
                 ui.label(RichText::new("请输入 密码"));
-                let input_4 = ui.text_edit_singleline(&mut self.tmp_config.password);
+                let _input_4 = ui.text_edit_singleline(&mut self.tmp_config.password);
                 // ui.label(RichText::new("请输入 数据库名称"));
                 // let input_5 = ui.text_edit_singleline(&mut self.tmp_config.db);
 

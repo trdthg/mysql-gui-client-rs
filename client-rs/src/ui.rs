@@ -5,7 +5,7 @@ use eframe::{
 };
 #[cfg(feature = "article")]
 mod article;
-mod component;
+mod components;
 #[cfg(feature = "database")]
 pub mod database;
 mod setting;
@@ -14,7 +14,7 @@ mod talk;
 #[cfg(feature = "test")]
 mod test;
 
-use crate::{backend::Repo, config::Config};
+use crate::{server::Repo, config::Config};
 
 #[cfg(feature = "article")]
 use self::article::Article;

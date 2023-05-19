@@ -2,7 +2,7 @@ mod config_new_conn;
 mod sidebar;
 mod table;
 pub mod types;
-use crate::backend::database::{
+use crate::server::database::{
     message::{self, ConnectionConfig},
     DatabaseClient,
 };

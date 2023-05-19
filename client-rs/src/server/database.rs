@@ -10,7 +10,7 @@ pub mod datatype;
 pub mod message;
 pub mod sqls;
 
-use crate::frontend::database::types::{ColumnKey, Field, TableRows, DB};
+use crate::ui::database::types::{ColumnKey, Field, TableRows, DB};
 
 use self::{
     datatype::{DataCell, DataType},
