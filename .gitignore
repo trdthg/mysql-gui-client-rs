@@ -1,1 +1,14 @@
-target/
+*.js
+*.wasm
+
+target
+
+/web/dist
+
+/assets/font
+/assets/fonts
+/assets/img/datagrip*
+/assets/img/navicat*
+
+.idea
+.vscode
